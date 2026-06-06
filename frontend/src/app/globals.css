@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: oklch(0.12 0.02 260);
+  --surface: oklch(0.16 0.02 260);
+  --surface-2: oklch(0.19 0.02 260);
+  --border: oklch(0.24 0.02 260);
+  --accent: oklch(0.60 0.20 215);
+  --accent-hover: oklch(0.65 0.22 215);
+  --accent-muted: oklch(0.60 0.20 215 / 0.15);
+  --text: oklch(0.95 0.01 260);
+  --text-muted: oklch(0.60 0.02 260);
+  --success: oklch(0.65 0.18 145);
+  --warning: oklch(0.75 0.18 65);
+  --error: oklch(0.60 0.22 25);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  html {
+    direction: rtl;
+    font-family: 'Cairo', sans-serif;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Cairo', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cairo', sans-serif;
+    font-weight: 700;
+  }
+
+  input, select, textarea, button {
+    font-family: 'Cairo', sans-serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--accent-muted);
+  color: var(--text);
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-surface {
+    background-color: var(--surface);
+  }
+
+  .bg-surface-2 {
+    background-color: var(--surface-2);
+  }
+
+  .border-default {
+    border-color: var(--border);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    direction: rtl;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .receipt-print {
+    background: white !important;
+    color: black !important;
+    padding: 20px;
+    font-family: 'Cairo', sans-serif;
+  }
+
+  .receipt-print * {
+    color: black !important;
+    border-color: #333 !important;
+    background: white !important;
+  }
+
+  @page {
+    margin: 1cm;
+    size: A5;
+  }
+}
+
+/* Sidebar & layout transitions */
+.sidebar-transition {
+  transition: transform 0.3s ease, width 0.3s ease;
+}
+
+/* Loading skeleton animation */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+/* Chart tooltip custom styling */
+.recharts-tooltip-wrapper {
+  direction: rtl;
+}
+
+/* Input RTL fix */
+input[type="number"] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background-color: var(--surface-2);
+  transition: background-color 0.15s ease;
+}
+
+/* Gradient backgrounds */
+.gradient-accent {
+  background: linear-gradient(135deg, var(--accent), oklch(0.50 0.22 230));
+}
+
+.gradient-bg {
+  background: linear-gradient(180deg, var(--bg) 0%, oklch(0.10 0.02 260) 100%);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
