@@ -15,7 +15,8 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { StatCard } from "@/components/ui/StatCard";
-import { Plus, Snowflake } from "lucide-react";
+import { Plus, Snowflake, Printer } from "lucide-react";
+import { printProduction } from "@/lib/print";
 import type { SnowProduction } from "@/lib/api";
 
 const productionSchema = z.object({
@@ -140,6 +141,20 @@ export default function SnowProductionPage() {
       header: "ملاحظات",
       render: (row: SnowProduction) => (
         <span className="text-xs text-[var(--text-muted)]">{row.notes ?? "-"}</span>
+      ),
+    },
+    {
+      key: "print",
+      header: "",
+      render: (row: SnowProduction) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Printer size={14} />}
+          onClick={(e) => { e.stopPropagation(); printProduction(row); }}
+        >
+          طباعة
+        </Button>
       ),
     },
   ];

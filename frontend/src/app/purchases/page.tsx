@@ -16,8 +16,9 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { PaymentBadge } from "@/components/ui/Badge";
-import { Plus, Trash2, AlertCircle } from "lucide-react";
+import { Plus, Trash2, AlertCircle, Printer } from "lucide-react";
 import type { Purchase, Supplier } from "@/lib/api";
+import { printPurchase } from "@/lib/print";
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, "أدخل اسم الصنف"),
@@ -140,6 +141,20 @@ export default function PurchasesPage() {
       header: "ملاحظات",
       render: (row: Purchase) => (
         <span className="text-xs text-[var(--text-muted)]">{row.notes ?? "-"}</span>
+      ),
+    },
+    {
+      key: "print",
+      header: "",
+      render: (row: Purchase) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Printer size={14} />}
+          onClick={(e) => { e.stopPropagation(); printPurchase(row); }}
+        >
+          طباعة
+        </Button>
       ),
     },
   ];

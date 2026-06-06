@@ -16,8 +16,8 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { PaymentBadge } from "@/components/ui/Badge";
-import { Receipt } from "@/components/Receipt";
 import { Plus, Trash2, Printer, ShoppingCart } from "lucide-react";
+import { printReceipt } from "@/lib/print";
 import type { GoodsSale, Product } from "@/lib/api";
 
 const saleItemSchema = z.object({
@@ -39,7 +39,6 @@ type SaleForm = z.infer<typeof saleSchema>;
 
 export default function GoodsPage() {
   const [saleModalOpen, setSaleModalOpen] = useState(false);
-  const [receiptSale, setReceiptSale] = useState<GoodsSale | null>(null);
   const [quickSaleProduct, setQuickSaleProduct] = useState<Product | null>(null);
   const queryClient = useQueryClient();
 
@@ -183,9 +182,23 @@ export default function GoodsPage() {
           variant="ghost"
           size="sm"
           icon={<Printer size={14} />}
-          onClick={(e) => { e.stopPropagation(); setReceiptSale(row); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            printReceipt({
+              receiptNumber: row.receiptNumber,
+              date: row.date,
+              customerName: row.customerName,
+              items: row.items?.map(item => ({ name: item.product?.name ?? "منتج", quantity: item.quantity, unitPrice: item.unitPrice, total: item.totalPrice })) ?? [],
+              totalAmount: row.totalAmount,
+              paymentType: row.paymentType,
+              amountPaid: row.amountPaid,
+              amountDue: row.amountDue,
+              notes: row.notes,
+              type: "goods",
+            });
+          }}
         >
-          إيصال
+          طباعة
         </Button>
       ),
     },
@@ -393,32 +406,6 @@ export default function GoodsPage() {
         </form>
       </Modal>
 
-      {/* Receipt Modal */}
-      <Modal
-        isOpen={!!receiptSale}
-        onClose={() => setReceiptSale(null)}
-        title="إيصال البيع"
-        size="md"
-      >
-        {receiptSale && (
-          <Receipt
-            receiptNumber={receiptSale.receiptNumber}
-            date={receiptSale.date}
-            customerName={receiptSale.customerName}
-            items={receiptSale.items?.map((item) => ({
-              name: item.product?.name ?? "منتج",
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              total: item.totalPrice,
-            })) ?? []}
-            totalAmount={receiptSale.totalAmount}
-            paymentType={receiptSale.paymentType}
-            amountPaid={receiptSale.amountPaid}
-            amountDue={receiptSale.amountDue}
-            notes={receiptSale.notes}
-          />
-        )}
-      </Modal>
     </AppLayout>
   );
 }

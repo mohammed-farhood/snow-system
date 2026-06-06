@@ -16,7 +16,8 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { StatCard } from "@/components/ui/StatCard";
-import { Plus, Wallet } from "lucide-react";
+import { Plus, Wallet, Printer } from "lucide-react";
+import { printExpense } from "@/lib/print";
 import type { Expense } from "@/lib/api";
 import {
   BarChart,
@@ -129,6 +130,20 @@ export default function ExpensesPage() {
         <span className="text-xs text-[var(--text-muted)]">
           {row.recordedBy?.name ?? "-"}
         </span>
+      ),
+    },
+    {
+      key: "print",
+      header: "",
+      render: (row: Expense) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Printer size={14} />}
+          onClick={(e) => { e.stopPropagation(); printExpense(row); }}
+        >
+          طباعة
+        </Button>
       ),
     },
   ];

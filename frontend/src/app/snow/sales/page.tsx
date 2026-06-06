@@ -16,8 +16,8 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { PaymentBadge } from "@/components/ui/Badge";
-import { Receipt } from "@/components/Receipt";
 import { Plus, Printer } from "lucide-react";
+import { printReceipt } from "@/lib/print";
 import type { SnowSale } from "@/lib/api";
 
 const saleSchema = z.object({
@@ -35,7 +35,6 @@ type SaleForm = z.infer<typeof saleSchema>;
 
 export default function SnowSalesPage() {
   const [saleModalOpen, setSaleModalOpen] = useState(false);
-  const [receiptSale, setReceiptSale] = useState<SnowSale | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -148,10 +147,21 @@ export default function SnowSalesPage() {
           icon={<Printer size={14} />}
           onClick={(e) => {
             e.stopPropagation();
-            setReceiptSale(row);
+            printReceipt({
+              receiptNumber: row.receiptNumber,
+              date: row.date,
+              customerName: row.customerName,
+              items: [{ name: row.snowType === "BLOCK" ? "ثلج قالب" : "ثلج مجروش", quantity: row.quantity, unitPrice: row.unitPrice, total: row.totalAmount }],
+              totalAmount: row.totalAmount,
+              paymentType: row.paymentType,
+              amountPaid: row.amountPaid,
+              amountDue: row.amountDue,
+              notes: row.notes,
+              type: "snow",
+            });
           }}
         >
-          إيصال
+          طباعة
         </Button>
       ),
     },
@@ -309,34 +319,6 @@ export default function SnowSalesPage() {
         </form>
       </Modal>
 
-      {/* Receipt Modal */}
-      <Modal
-        isOpen={!!receiptSale}
-        onClose={() => setReceiptSale(null)}
-        title="إيصال البيع"
-        size="md"
-      >
-        {receiptSale && (
-          <Receipt
-            receiptNumber={receiptSale.receiptNumber}
-            date={receiptSale.date}
-            customerName={receiptSale.customerName}
-            items={[
-              {
-                name: receiptSale.snowType === "BLOCK" ? "ثلج قالب" : "ثلج مجروش",
-                quantity: receiptSale.quantity,
-                unitPrice: receiptSale.unitPrice,
-                total: receiptSale.totalAmount,
-              },
-            ]}
-            totalAmount={receiptSale.totalAmount}
-            paymentType={receiptSale.paymentType}
-            amountPaid={receiptSale.amountPaid}
-            amountDue={receiptSale.amountDue}
-            notes={receiptSale.notes}
-          />
-        )}
-      </Modal>
     </AppLayout>
   );
 }
