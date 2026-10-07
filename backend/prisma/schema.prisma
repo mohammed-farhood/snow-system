@@ -1,3 +1,6 @@
+// Snow factory — one sale model for ice and goods, stock computed from movements,
+// debts settled with payments. Money is whole Iraqi dinars (Int): no fractions exist in practice.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,178 +16,173 @@ enum Role {
   WORKER
 }
 
-enum PaymentType {
-  CASH
-  DEBT
-  PARTIAL
-}
-
-enum SnowType {
-  BLOCK
-  CRUSHED
+enum ProductKind {
+  ICE   // made here: stock comes from production
+  GOODS // bought in: stock comes from purchases
 }
 
 enum ExpenseCategory {
   GAS
   ELECTRICITY
-  WATER_TAX
+  WATER
   SALARY
+  MAINTENANCE
   OTHER
 }
 
 model User {
   id        Int      @id @default(autoincrement())
   name      String
-  username  String   @unique
-  password  String
+  pin       String // bcrypt hash of a 4–6 digit PIN
   role      Role     @default(WORKER)
   isActive  Boolean  @default(true)
+  failedPin Int      @default(0)
+  lockedTil DateTime?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  snowProductions SnowProduction[]
-  goodsSales      GoodsSale[]
-  snowSales       SnowSale[]
-  expenses        Expense[]
-  purchases       PurchaseOrder[]
+  sales       Sale[]
+  productions Production[]
+  expenses    Expense[]
+  purchases   Purchase[]
+  payments    Payment[]
 }
 
 model Product {
-  id           Int      @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   name         String
-  category     String   @default("عام")
-  unit         String   @default("حبة")
-  sellingPrice Decimal  @db.Decimal(12, 2)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  kind         ProductKind @default(GOODS)
+  unit         String      @default("حبة")
+  price        Int
+  // ICE only: how many produced blocks one unit uses up (block = 1).
+  blocksPerUnit Decimal    @default(1) @db.Decimal(6, 3)
+  openingStock Int         @default(0)
+  sortOrder    Int         @default(0)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
 
-  purchaseItems PurchaseOrderItem[]
-  saleItems     GoodsSaleItem[]
-}
-
-model Supplier {
-  id        Int      @id @default(autoincrement())
-  name      String
-  contact   String?
-  createdAt DateTime @default(now())
-
-  purchaseOrders PurchaseOrder[]
-}
-
-model PurchaseOrder {
-  id          Int         @id @default(autoincrement())
-  supplierId  Int
-  date        DateTime    @default(now())
-  paymentType PaymentType
-  totalAmount Decimal     @db.Decimal(12, 2)
-  amountPaid  Decimal     @db.Decimal(12, 2) @default(0)
-  notes       String?
-  createdById Int
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  supplier  Supplier            @relation(fields: [supplierId], references: [id])
-  createdBy User                @relation(fields: [createdById], references: [id])
-  items     PurchaseOrderItem[]
-}
-
-model PurchaseOrderItem {
-  id              Int     @id @default(autoincrement())
-  purchaseOrderId Int
-  productId       Int
-  quantity        Decimal @db.Decimal(10, 2)
-  unitPrice       Decimal @db.Decimal(12, 2)
-
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product       @relation(fields: [productId], references: [id])
-}
-
-model SnowProduction {
-  id                Int      @id @default(autoincrement())
-  date              DateTime @default(now())
-  totalBlocks       Int
-  wastedBlocks      Int      @default(0)
-  blocksSoldWhole   Int      @default(0)
-  blocksSoldCrushed Int      @default(0)
-  pricePerBlock     Decimal  @db.Decimal(12, 2)
-  pricePerCrushed   Decimal  @db.Decimal(12, 2)
-  notes             String?
-  createdById       Int
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  createdBy User @relation(fields: [createdById], references: [id])
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
 }
 
 model Customer {
   id        Int      @id @default(autoincrement())
-  name      String
+  name      String   @unique
   phone     String?
   createdAt DateTime @default(now())
 
-  goodsSales GoodsSale[]
-  snowSales  SnowSale[]
+  sales    Sale[]
+  payments Payment[]
 }
 
-model GoodsSale {
-  id            Int         @id @default(autoincrement())
-  customerId    Int?
-  customerName  String
-  receiptNumber String      @unique
-  date          DateTime    @default(now())
-  paymentType   PaymentType
-  totalAmount   Decimal     @db.Decimal(12, 2)
-  amountPaid    Decimal     @db.Decimal(12, 2) @default(0)
-  createdById   Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
 
-  customer  Customer?       @relation(fields: [customerId], references: [id])
-  createdBy User            @relation(fields: [createdById], references: [id])
-  items     GoodsSaleItem[]
+  purchases Purchase[]
+  payments  Payment[]
 }
 
-model GoodsSaleItem {
-  id        Int     @id @default(autoincrement())
+model Sale {
+  id          Int      @id @default(autoincrement())
+  receiptNo   Int      @unique @default(autoincrement())
+  date        DateTime @default(now())
+  customerId  Int?
+  total       Int
+  paid        Int
+  note        String?
+  createdById Int
+
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  createdBy User       @relation(fields: [createdById], references: [id])
+  items     SaleItem[]
+
+  @@index([date])
+}
+
+model SaleItem {
+  id        Int @id @default(autoincrement())
   saleId    Int
   productId Int
-  quantity  Decimal @db.Decimal(10, 2)
-  unitPrice Decimal @db.Decimal(12, 2)
+  quantity  Int
+  price     Int
 
-  sale    GoodsSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product   @relation(fields: [productId], references: [id])
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 }
 
-model SnowSale {
-  id            Int         @id @default(autoincrement())
-  customerId    Int?
-  customerName  String
-  receiptNumber String      @unique
-  date          DateTime    @default(now())
-  snowType      SnowType
-  quantity      Decimal     @db.Decimal(10, 2)
-  unitPrice     Decimal     @db.Decimal(12, 2)
-  paymentType   PaymentType
-  amountPaid    Decimal     @db.Decimal(12, 2) @default(0)
-  createdById   Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+model Production {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  blocks      Int
+  wasted      Int      @default(0)
+  note        String?
+  createdById Int
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([date])
+}
+
+model Purchase {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  supplierId  Int
+  total       Int
+  paid        Int
+  note        String?
+  createdById Int
+
+  supplier  Supplier       @relation(fields: [supplierId], references: [id])
+  createdBy User           @relation(fields: [createdById], references: [id])
+  items     PurchaseItem[]
+
+  @@index([date])
+}
+
+model PurchaseItem {
+  id         Int @id @default(autoincrement())
+  purchaseId Int
+  productId  Int
+  quantity   Int
+  cost       Int
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+}
+
+// Money settling an old debt: from a customer (in) or to a supplier (out).
+model Payment {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  customerId  Int?
+  supplierId  Int?
+  amount      Int
+  note        String?
+  createdById Int
 
   customer  Customer? @relation(fields: [customerId], references: [id])
+  supplier  Supplier? @relation(fields: [supplierId], references: [id])
   createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@index([date])
 }
 
 model Expense {
   id          Int             @id @default(autoincrement())
-  category    ExpenseCategory
-  description String?
-  amount      Decimal         @db.Decimal(12, 2)
   date        DateTime        @default(now())
-  notes       String?
+  category    ExpenseCategory
+  amount      Int
+  note        String?
   createdById Int
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
 
   createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([date])
+}
+
+model Setting {
+  key   String @id
+  value String
 }

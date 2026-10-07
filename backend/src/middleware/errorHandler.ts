@@ -48,19 +48,12 @@ export const errorHandler = (
     message = "بيانات غير صالحة لقاعدة البيانات";
   }
 
-  if (process.env.NODE_ENV === "development") {
-    console.error("Error:", {
-      message: err.message,
-      stack: err.stack,
-      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
-    });
+  if (statusCode >= 500) {
+    console.error(err);
+    message = "حدث خطأ. حاول مرة ثانية";
   }
 
-  res.status(statusCode).json({
-    success: false,
-    error: message,
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
-  });
+  res.status(statusCode).json({ success: false, error: message });
 };
 
 export const notFound = (req: Request, res: Response): void => {

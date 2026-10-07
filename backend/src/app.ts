@@ -1,91 +1,56 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
-// Routes
 import authRoutes from "./routes/auth";
-import usersRoutes from "./routes/users";
-import productsRoutes from "./routes/products";
-import suppliersRoutes from "./routes/suppliers";
-import purchasesRoutes from "./routes/purchases";
-import snowRoutes from "./routes/snow";
 import salesRoutes from "./routes/sales";
-import expensesRoutes from "./routes/expenses";
-import customersRoutes from "./routes/customers";
+import entriesRoutes from "./routes/entries";
+import todayRoutes from "./routes/today";
+import peopleRoutes from "./routes/people";
 import reportsRoutes from "./routes/reports";
-import dashboardRoutes from "./routes/dashboard";
-import settingsRoutes from "./routes/settings";
-
-// Middleware
+import adminRoutes from "./routes/admin";
+import { authenticate } from "./middleware/auth";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 
+if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set");
+
 const app = express();
+app.set("trust proxy", "loopback");
+app.use(helmet());
+// In production the web app and the API share one domain (nginx), so CORS only matters in development.
+if (process.env.NODE_ENV !== "production") app.use(cors());
+app.use(morgan(process.env.NODE_ENV === "production" ? "tiny" : "dev"));
+app.use(express.json({ limit: "200kb" }));
 
-// ─── Security & Utilities ─────────────────────────────────────────────────────
-app.use(
-  helmet({
-    crossOriginEmbedderPolicy: false,
-  })
-);
+// Per-IP guard on sign-in, on top of the per-person PIN lockout.
+const tries = new Map<string, { n: number; until: number }>();
+function loginLimit(req: Request, res: Response, next: NextFunction) {
+  const key = req.ip ?? "?";
+  const now = Date.now();
+  const t = tries.get(key);
+  if (!t || t.until < now) tries.set(key, { n: 1, until: now + 10 * 60000 });
+  else if (++t.n > 30) {
+    res.status(429).json({ success: false, error: "محاولات كثيرة. انتظر قليلاً" });
+    return;
+  }
+  next();
+}
 
-const allowedOrigins = process.env.NODE_ENV === "development"
-  ? true  // allow all origins in dev
-  : (process.env.CORS_ORIGIN ?? "http://localhost:3000");
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-
-// ─── Health check ─────────────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-      version: "1.0.0",
-      service: "Snow Factory ERP",
-    },
-  });
-});
-
-// ─── API Routes ───────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) => res.json({ success: true, data: { ok: true } }));
+app.use("/api/auth/login", loginLimit);
 app.use("/api/auth", authRoutes);
-app.use("/api/users", usersRoutes);
-app.use("/api/products", productsRoutes);
-app.use("/api/suppliers", suppliersRoutes);
-app.use("/api/purchases", purchasesRoutes);
-app.use("/api/snow", snowRoutes);
+app.use("/api", authenticate);
 app.use("/api/sales", salesRoutes);
-app.use("/api/expenses", expensesRoutes);
-app.use("/api/customers", customersRoutes);
 app.use("/api/reports", reportsRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/settings", settingsRoutes);
+app.use("/api", entriesRoutes);
+app.use("/api", todayRoutes);
+app.use("/api", peopleRoutes);
+app.use("/api", adminRoutes);
 
-// ─── Error Handlers ───────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
-
-app.listen(PORT, () => {
-  console.log(`\n🏭 Snow Factory ERP Backend`);
-  console.log(`📡 Server running on http://localhost:${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV ?? "development"}`);
-  console.log(`✅ API health: http://localhost:${PORT}/api/health\n`);
-});
-
-export default app;
+app.listen(PORT, "127.0.0.1", () => console.log(`Snow factory API on http://127.0.0.1:${PORT}`));

@@ -1,62 +1,61 @@
 import { Router } from "express";
 import { z } from "zod";
-import { PaymentType, Role } from "@prisma/client";
-import {
-  getSales,
-  getSaleById,
-  getSaleByReceipt,
-  createSale,
-  updateSale,
-  deleteSale,
-} from "../controllers/salesController";
-import { authenticate, authorize } from "../middleware/auth";
+import prisma from "../lib/prisma";
+import { h, HttpError, idParam } from "../lib/http";
 import { validate } from "../middleware/validate";
+import { customerByName } from "../lib/ledger";
 
 const router = Router();
 
-router.use(authenticate);
-
-const saleItemSchema = z.object({
-  productId: z.number().int().positive("معرف المنتج مطلوب"),
-  quantity: z.number().positive("الكمية يجب أن تكون موجبة"),
-  unitPrice: z.number().positive("السعر يجب أن يكون موجباً"),
+const saleSchema = z.object({
+  items: z
+    .array(z.object({ productId: z.number().int(), quantity: z.number().int().positive() }))
+    .min(1, "اختر شيئاً للبيع"),
+  customerName: z.string().max(80).optional().nullable(),
+  // Omitted = paid in full. Less than the total = the rest becomes the customer's debt.
+  paid: z.number().int().min(0).optional(),
+  note: z.string().max(300).optional().nullable(),
 });
 
-const createSaleSchema = z.object({
-  customerId: z.number().int().positive().optional(),
-  customerName: z.string().min(1, "اسم الزبون مطلوب"),
-  date: z.string().datetime().optional(),
-  paymentType: z.nativeEnum(PaymentType),
-  amountPaid: z.number().min(0).optional(),
-  items: z.array(saleItemSchema).min(1, "يجب إضافة منتج واحد على الأقل"),
-});
+export const saleInclude = {
+  customer: { select: { id: true, name: true } },
+  createdBy: { select: { id: true, name: true } },
+  items: { include: { product: { select: { id: true, name: true, unit: true, kind: true } } } },
+} as const;
 
-const updateSaleSchema = z.object({
-  amountPaid: z.number().min(0).optional(),
-  paymentType: z.nativeEnum(PaymentType).optional(),
-});
+router.post(
+  "/",
+  validate(saleSchema),
+  h(async (req) => {
+    const body = req.body as z.infer<typeof saleSchema>;
+    const products = await prisma.product.findMany({
+      where: { id: { in: body.items.map((i) => i.productId) }, isActive: true },
+    });
+    const priceOf = new Map(products.map((p) => [p.id, p.price]));
+    const items = body.items.map((i) => {
+      const price = priceOf.get(i.productId);
+      if (price === undefined) throw new HttpError(400, "منتج غير موجود");
+      return { productId: i.productId, quantity: i.quantity, price };
+    });
+    const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+    const paid = Math.min(body.paid ?? total, total);
+    const customerId = await customerByName(body.customerName);
+    if (paid < total && !customerId) throw new HttpError(400, "اكتب اسم الزبون حتى نسجّل عليه الدين");
 
-// GET /api/sales
-router.get("/", getSales);
-
-// GET /api/sales/receipt/:receiptNumber
-router.get("/receipt/:receiptNumber", getSaleByReceipt);
-
-// GET /api/sales/:id
-router.get("/:id", getSaleById);
-
-// POST /api/sales
-router.post("/", validate(createSaleSchema), createSale);
-
-// PUT /api/sales/:id  (OWNER / SUPERVISOR)
-router.put(
-  "/:id",
-  authorize(Role.OWNER, Role.SUPERVISOR),
-  validate(updateSaleSchema),
-  updateSale
+    return prisma.sale.create({
+      data: { customerId, total, paid, note: body.note || null, createdById: req.user!.id, items: { create: items } },
+      include: saleInclude,
+    });
+  })
 );
 
-// DELETE /api/sales/:id  (OWNER only)
-router.delete("/:id", authorize(Role.OWNER), deleteSale);
+router.get(
+  "/:id",
+  h(async (req) => {
+    const sale = await prisma.sale.findUnique({ where: { id: idParam(req) }, include: saleInclude });
+    if (!sale) throw new HttpError(404, "الفاتورة غير موجودة");
+    return sale;
+  })
+);
 
 export default router;

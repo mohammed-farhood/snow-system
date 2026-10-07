@@ -3,85 +3,41 @@ import jwt from "jsonwebtoken";
 import { Role } from "@prisma/client";
 import prisma from "../lib/prisma";
 
-interface JwtPayload {
-  id: number;
-  username: string;
-  role: Role;
-}
-
-export const authenticate = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    res.status(401).json({ success: false, error: "سجّل الدخول أولاً" });
+    return;
+  }
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res.status(401).json({ success: false, error: "رمز المصادقة مطلوب" });
-      return;
-    }
-
-    const token = authHeader.split(" ")[1];
-    const secret = process.env.JWT_SECRET;
-
-    if (!secret) {
-      throw new Error("JWT_SECRET is not configured");
-    }
-
-    const decoded = jwt.verify(token, secret) as JwtPayload;
-
+    const decoded = jwt.verify(header.slice(7), process.env.JWT_SECRET!) as { id: number };
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, username: true, name: true, role: true, isActive: true },
+      select: { id: true, name: true, role: true, isActive: true },
     });
-
-    if (!user) {
-      res.status(401).json({ success: false, error: "المستخدم غير موجود" });
+    if (!user || !user.isActive) {
+      res.status(401).json({ success: false, error: "سجّل الدخول أولاً" });
       return;
     }
-
-    if (!user.isActive) {
-      res.status(403).json({ success: false, error: "الحساب معطل" });
-      return;
-    }
-
-    req.user = {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-    };
-
+    req.user = { id: user.id, name: user.name, role: user.role };
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({ success: false, error: "رمز المصادقة غير صالح" });
-      return;
-    }
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ success: false, error: "انتهت صلاحية رمز المصادقة" });
+      res.status(401).json({ success: false, error: "سجّل الدخول أولاً" });
       return;
     }
     next(error);
   }
 };
 
-export const authorize = (...roles: Role[]) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({ success: false, error: "غير مصادق" });
+export const authorize =
+  (...roles: Role[]) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ success: false, error: "هذا ليس من صلاحيتك" });
       return;
     }
-
-    if (!roles.includes(req.user.role)) {
-      res.status(403).json({
-        success: false,
-        error: "ليس لديك صلاحية للوصول إلى هذا المورد",
-      });
-      return;
-    }
-
     next();
   };
-};
+
+export const MANAGERS: Role[] = [Role.OWNER, Role.SUPERVISOR];
