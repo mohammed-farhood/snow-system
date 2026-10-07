@@ -1,0 +1,13 @@
+[Unit]
+Description=Snow factory web app
+After=network.target snow-api.service
+
+[Service]
+WorkingDirectory=/srv/snow/frontend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /srv/snow/frontend/node_modules/next/dist/bin/next start -p 4950 -H 127.0.0.1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

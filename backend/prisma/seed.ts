@@ -42,7 +42,8 @@ async function base() {
 }
 
 async function demo(ownerId: number) {
-  const pin = await bcrypt.hash("1111", 10);
+  const staffPin = process.env.SEED_STAFF_PIN ?? "1111";
+  const pin = await bcrypt.hash(staffPin, 10);
   const staff = [ownerId];
   for (const [name, role] of [["أبو علي", "SUPERVISOR"], ["حيدر", "WORKER"], ["مصطفى", "WORKER"]] as const) {
     staff.push((await prisma.user.create({ data: { name, role, pin } })).id);
@@ -137,7 +138,7 @@ async function main() {
     await wipe();
     const owner = await base();
     await demo(owner.id);
-    console.log("Demo data ready. Owner PIN:", process.env.SEED_OWNER_PIN ?? "1234", "· staff PIN: 1111");
+    console.log("Demo data ready. Owner PIN:", process.env.SEED_OWNER_PIN ?? "1234", "· staff PIN:", process.env.SEED_STAFF_PIN ?? "1111", "");
     return;
   }
   if ((await prisma.user.count()) > 0) {

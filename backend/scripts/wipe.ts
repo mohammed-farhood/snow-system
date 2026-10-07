@@ -1,4 +1,5 @@
-// Development only: empties the local database so the "brand new factory" screens can be checked.
+// Empties every table. Used by `deploy.sh --fresh` and to check "brand new factory" screens locally.
+// Only runs against a database on this same machine (127.0.0.1 / localhost).
 import { PrismaClient } from "@prisma/client";
 
 async function main() {
