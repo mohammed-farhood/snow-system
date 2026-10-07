@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Snowflake, Package, UserRound } from "lucide-react";
-import { api, post, put, type Product, type Role, type Settings, type UserRow } from "@/lib/api";
+import { api, post, put, type Product, type Role, type SecretKind, type Settings, type UserRow } from "@/lib/api";
 import { ROLE } from "@/lib/format";
 import { Shell, useMe } from "@/components/Shell";
 import { AmountField, ErrorLine, Money, PageTitle, Sheet, Skeleton } from "@/components/ui";
@@ -147,9 +147,9 @@ function ProductSheet({ draft, onClose }: { draft: Draft | null; onClose: () => 
   );
 }
 
-// ─── People & PINs ───────────────────────────────────────────────────────────
+// ─── People & sign-in ────────────────────────────────────────────────────────
 
-type Person = { id?: number; name: string; role: Role; isActive: boolean; pin: string };
+type Person = { id?: number; name: string; role: Role; isActive: boolean; secretKind: SecretKind; savedKind?: SecretKind; pin: string };
 
 function People() {
   const me = useMe();
@@ -158,17 +158,19 @@ function People() {
   if (!data) return <Skeleton h="h-60" />;
   return (
     <div className="grid gap-2">
-      <p className="mb-1 text-muted">كل واحد يدخل باسمه ورمز من 4 أرقام.</p>
+      <p className="mb-1 text-muted">كل واحد يدخل باسمه، برمز من 4 أرقام أو بكلمة سر يكتبها.</p>
       {data.map((u) => (
-        <button key={u.id} onClick={() => setEdit({ ...u, pin: "" })} className={`panel flex items-center gap-3 p-3 text-right ${u.isActive ? "" : "opacity-50"}`}>
+        <button key={u.id} onClick={() => setEdit({ ...u, savedKind: u.secretKind, pin: "" })} className={`panel flex items-center gap-3 p-3 text-right ${u.isActive ? "" : "opacity-50"}`}>
           <span className="grid h-11 w-11 place-items-center rounded-full bg-teal/10 text-teal"><UserRound size={20} /></span>
           <span className="flex-1">
             <span className="block font-bold">{u.name} {u.id === me?.id && <span className="text-sm text-muted">(أنت)</span>}</span>
-            <span className="text-sm text-muted">{u.isActive ? ROLE[u.role] : "موقوف"}</span>
+            <span className="text-sm text-muted">
+              {u.isActive ? ROLE[u.role] : "موقوف"}، {u.secretKind === "PIN" ? "رمز 4 أرقام" : "كلمة سر"}
+            </span>
           </span>
         </button>
       ))}
-      <button className="btn-ghost mt-2" onClick={() => setEdit({ name: "", role: "WORKER", isActive: true, pin: "" })}>
+      <button className="btn-ghost mt-2" onClick={() => setEdit({ name: "", role: "WORKER", isActive: true, secretKind: "PIN", pin: "" })}>
         <Plus /> شخص جديد
       </button>
       <PersonSheet p={edit} self={edit?.id === me?.id} onClose={() => setEdit(null)} />
@@ -176,9 +178,11 @@ function People() {
   );
 }
 
+const toWestern = (s: string) => s.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)));
+
 function PersonSheet({ p, self, onClose }: { p: Person | null; self: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [d, setD] = useState<Person>({ name: "", role: "WORKER", isActive: true, pin: "" });
+  const [d, setD] = useState<Person>({ name: "", role: "WORKER", isActive: true, secretKind: "PIN", pin: "" });
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (p) {
@@ -186,10 +190,18 @@ function PersonSheet({ p, self, onClose }: { p: Person | null; self: boolean; on
       setError(null);
     }
   }, [p]);
+
+  const pinKind = d.secretKind === "PIN";
+  // A new person, or someone switching between PIN and password, must be given the new secret.
+  const needsSecret = !d.id || d.secretKind !== d.savedKind;
+  const secretOk = pinKind ? /^\d{4}$/.test(d.pin) : d.pin.replace(/\s/g, "").length >= 4;
+  const canSave = !!d.name.trim() && (d.pin ? secretOk : !needsSecret);
+
   const save = async () => {
     try {
-      if (d.id) await put(`/users/${d.id}`, { name: d.name, role: d.role, isActive: d.isActive, ...(d.pin ? { pin: d.pin } : {}) });
-      else await post("/users", { name: d.name, role: d.role, pin: d.pin });
+      const body = { name: d.name, role: d.role, secretKind: d.secretKind, ...(d.pin ? { pin: d.pin } : {}) };
+      if (d.id) await put(`/users/${d.id}`, { ...body, isActive: d.isActive });
+      else await post("/users", body);
       qc.invalidateQueries();
       onClose();
     } catch (e) {
@@ -220,16 +232,52 @@ function PersonSheet({ p, self, onClose }: { p: Person | null; self: boolean; on
             </p>
           </div>
         )}
+        <div>
+          <span className="label">طريقة الدخول</span>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {(
+              [
+                ["PIN", "رمز 4 أرقام"],
+                ["PASSWORD", "كلمة سر يكتبها"],
+              ] as [SecretKind, string][]
+            ).map(([k, label]) => (
+              <button key={k} className="chip justify-center" aria-pressed={d.secretKind === k} onClick={() => setD({ ...d, secretKind: k, pin: "" })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <label>
-          <span className="label">{d.id ? "رمز جديد (اتركه فارغ إذا ما تريد تغيّره)" : "الرمز (4 أرقام)"}</span>
-          <input
-            className="field num text-center text-3xl tracking-[0.5em]"
-            dir="ltr"
-            inputMode="numeric"
-            maxLength={4}
-            value={d.pin}
-            onChange={(e) => setD({ ...d, pin: e.target.value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/\D/g, "").slice(0, 4) })}
-          />
+          <span className="label">
+            {needsSecret
+              ? pinKind ? "الرمز (4 أرقام)" : "كلمة السر"
+              : pinKind ? "رمز جديد (اتركه فارغ إذا ما تريد تغيّره)" : "كلمة سر جديدة (اتركها فارغة إذا ما تريد تغيّرها)"}
+          </span>
+          {pinKind ? (
+            <input
+              className="field num text-center text-3xl tracking-[0.5em]"
+              dir="ltr"
+              inputMode="numeric"
+              maxLength={4}
+              value={d.pin}
+              onChange={(e) => setD({ ...d, pin: toWestern(e.target.value).replace(/\D/g, "").slice(0, 4) })}
+            />
+          ) : (
+            <>
+              <textarea
+                className="field min-h-[96px] resize-none text-lg"
+                dir="rtl"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={300}
+                value={d.pin}
+                onChange={(e) => setD({ ...d, pin: e.target.value })}
+                placeholder="أي كلام، مثلاً جملة يحفظها"
+              />
+              <span className="text-sm text-muted">نفس الكلمات بالترتيب. المسافات والهمزات والتشكيل ما تفرق.</span>
+            </>
+          )}
         </label>
         {d.id && !self && (
           <label className="flex items-center justify-between rounded-btn bg-paper p-4">
@@ -238,7 +286,7 @@ function PersonSheet({ p, self, onClose }: { p: Person | null; self: boolean; on
           </label>
         )}
         <ErrorLine msg={error} />
-        <button className="btn-sun" disabled={!d.name.trim() || (!d.id && d.pin.length !== 4) || (!!d.pin && d.pin.length !== 4)} onClick={save}>
+        <button className="btn-sun" disabled={!canSave} onClick={save}>
           حفظ
         </button>
       </div>

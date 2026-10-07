@@ -1,8 +1,8 @@
 // Products & prices, people & PINs, factory settings.
 import { Router } from "express";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { ProductKind, Role } from "@prisma/client";
+import { hashSecret } from "../lib/secret";
+import { ProductKind, Role, SecretKind } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { h, HttpError, idParam } from "../lib/http";
 import { validate } from "../middleware/validate";
@@ -60,22 +60,30 @@ router.get(
   owner,
   h(async () =>
     prisma.user.findMany({
-      select: { id: true, name: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, role: true, isActive: true, secretKind: true },
       orderBy: [{ isActive: "desc" }, { role: "asc" }, { name: "asc" }],
     })
   )
 );
 
-const pin = z.string().regex(/^\d{4}$/, "الرمز 4 أرقام");
+// `pin` is the new secret: 4 digits when secretKind is PIN, any words when it is PASSWORD.
+const secret = z.string().min(1).max(400);
+const shown = { id: true, name: true, role: true, isActive: true, secretKind: true } as const;
 
 router.post(
   "/users",
   owner,
-  validate(z.object({ name: z.string().trim().min(1).max(40), role: z.nativeEnum(Role), pin })),
+  validate(
+    z.object({
+      name: z.string().trim().min(1).max(40),
+      role: z.nativeEnum(Role),
+      secretKind: z.nativeEnum(SecretKind).default("PIN"),
+      pin: secret,
+    })
+  ),
   h(async (req) => {
-    const { name, role, pin } = req.body;
-    const u = await prisma.user.create({ data: { name, role, pin: await bcrypt.hash(pin, 10) } });
-    return { id: u.id, name: u.name, role: u.role, isActive: u.isActive };
+    const { name, role, secretKind, pin } = req.body;
+    return prisma.user.create({ data: { name, role, secretKind, pin: await hashSecret(secretKind, pin) }, select: shown });
   })
 );
 
@@ -87,20 +95,34 @@ router.put(
       name: z.string().trim().min(1).max(40).optional(),
       role: z.nativeEnum(Role).optional(),
       isActive: z.boolean().optional(),
-      pin: pin.optional(),
+      secretKind: z.nativeEnum(SecretKind).optional(),
+      pin: secret.optional(),
     })
   ),
   h(async (req) => {
     const id = idParam(req);
-    const { pin, ...rest } = req.body as { pin?: string; role?: Role; isActive?: boolean; name?: string };
-    if (id === req.user!.id && (rest.role && rest.role !== "OWNER" || rest.isActive === false)) {
+    const { pin, secretKind, ...rest } = req.body as {
+      pin?: string;
+      secretKind?: SecretKind;
+      role?: Role;
+      isActive?: boolean;
+      name?: string;
+    };
+    if (id === req.user!.id && ((rest.role && rest.role !== "OWNER") || rest.isActive === false)) {
       throw new HttpError(400, "لا يمكنك إيقاف حسابك أو تغيير صلاحيتك");
     }
-    const u = await prisma.user.update({
+    const current = await prisma.user.findUnique({ where: { id }, select: { secretKind: true } });
+    if (!current) throw new HttpError(404, "الشخص غير موجود");
+    const kind = secretKind ?? current.secretKind;
+    if (kind !== current.secretKind && !pin) throw new HttpError(400, "اكتب الرمز أو كلمة السر الجديدة");
+    return prisma.user.update({
       where: { id },
-      data: { ...rest, ...(pin ? { pin: await bcrypt.hash(pin, 10), failedPin: 0, lockedTil: null } : {}) },
+      data: {
+        ...rest,
+        ...(pin ? { secretKind: kind, pin: await hashSecret(kind, pin), failedPin: 0, lockedTil: null } : {}),
+      },
+      select: shown,
     });
-    return { id: u.id, name: u.name, role: u.role, isActive: u.isActive };
   })
 );
 

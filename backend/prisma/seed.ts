@@ -30,7 +30,7 @@ async function wipe() {
 async function base() {
   const ownerPin = process.env.SEED_OWNER_PIN ?? "1234";
   const owner = await prisma.user.create({
-    data: { name: "المالك", role: "OWNER", pin: await bcrypt.hash(ownerPin, 10) },
+    data: { name: process.env.SEED_OWNER_NAME ?? "مصطفى", role: "OWNER", pin: await bcrypt.hash(ownerPin, 10) },
   });
   await prisma.product.createMany({
     data: [
@@ -45,7 +45,7 @@ async function demo(ownerId: number) {
   const staffPin = process.env.SEED_STAFF_PIN ?? "1111";
   const pin = await bcrypt.hash(staffPin, 10);
   const staff = [ownerId];
-  for (const [name, role] of [["أبو علي", "SUPERVISOR"], ["حيدر", "WORKER"], ["مصطفى", "WORKER"]] as const) {
+  for (const [name, role] of [["عبود", "SUPERVISOR"], ["حيدر", "WORKER"], ["علي", "WORKER"]] as const) {
     staff.push((await prisma.user.create({ data: { name, role, pin } })).id);
   }
 

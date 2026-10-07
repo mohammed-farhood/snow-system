@@ -16,6 +16,12 @@ enum Role {
   WORKER
 }
 
+// How a person signs in: 4 digits on the keypad, or a typed password (any words).
+enum SecretKind {
+  PIN
+  PASSWORD
+}
+
 enum ProductKind {
   ICE   // made here: stock comes from production
   GOODS // bought in: stock comes from purchases
@@ -33,7 +39,8 @@ enum ExpenseCategory {
 model User {
   id        Int      @id @default(autoincrement())
   name      String
-  pin       String // bcrypt hash of a 4-digit PIN
+  pin       String // bcrypt hash of the 4-digit PIN, or of the normalised typed password
+  secretKind SecretKind @default(PIN)
   role      Role     @default(WORKER)
   isActive  Boolean  @default(true)
   failedPin Int      @default(0)

@@ -143,10 +143,11 @@ export function Done({ title, sub, children }: { title: string; sub?: React.Reac
   );
 }
 
-export function ErrorLine({ msg }: { msg?: string | null }) {
+/** `onDark` for the teal sign-in screen, where a faint red tint would not be readable. */
+export function ErrorLine({ msg, onDark = false }: { msg?: string | null; onDark?: boolean }) {
   if (!msg) return null;
   return (
-    <p key={msg} role="alert" className="shake rounded-btn bg-debt/10 px-4 py-3 text-center font-semibold text-debt">
+    <p key={msg} role="alert" className={`shake rounded-btn px-4 py-3 text-center font-semibold text-debt ${onDark ? "bg-white" : "bg-debt/10"}`}>
       {msg}
     </p>
   );

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Delete } from "lucide-react";
-import { api, post, session, type Me } from "@/lib/api";
+import { ArrowRight, Delete, Eye, EyeOff } from "lucide-react";
+import { api, post, session, type Me, type SecretKind } from "@/lib/api";
 import { ROLE } from "@/lib/format";
 import { ErrorLine, Skeleton } from "@/components/ui";
 
-type Person = { id: number; name: string; role: Me["role"] };
+type Person = { id: number; name: string; role: Me["role"]; secretKind: SecretKind };
 
 export default function LoginPage() {
   const { data, isLoading, error: loadError } = useQuery({
@@ -29,26 +29,31 @@ export default function LoginPage() {
     } catch {}
   }, [data, who]);
 
-  const press = async (d: string) => {
+  const signIn = async (secret: string) => {
     if (busy || !who) return;
-    const next = (pin + d).slice(0, 4);
-    setPin(next);
-    setError(null);
-    if (next.length < 4) return;
     setBusy(true);
+    setError(null);
     try {
-      const r = await post<{ token: string; user: Me }>("/auth/login", { userId: who.id, pin: next });
+      const r = await post<{ token: string; user: Me }>("/auth/login", { userId: who.id, pin: secret });
       session.save(r.token, r.user);
       window.location.replace("/");
     } catch (e) {
       setError((e as Error).message);
-      setPin("");
+      if (who.secretKind === "PIN") setPin("");
       setBusy(false);
     }
   };
 
+  const press = (d: string) => {
+    if (busy || !who) return;
+    const next = (pin + d).slice(0, 4);
+    setPin(next);
+    setError(null);
+    if (next.length === 4) signIn(next);
+  };
+
   useEffect(() => {
-    if (!who) return;
+    if (!who || who.secretKind !== "PIN") return;
     const key = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) press(e.key);
       else if (e.key === "Backspace") setPin((p) => p.slice(0, -1));
@@ -65,7 +70,7 @@ export default function LoginPage() {
           <img src="/icon.svg" alt="" className="h-14 w-14 rounded-2xl" />
           <div>
             <h1 className="num text-4xl">{data?.factoryName ?? "مصنع الثلج"}</h1>
-            <p className="text-white/70">{who ? "اكتب رمزك" : "من أنت؟"}</p>
+            <p className="text-white/70">{!who ? "من أنت؟" : who.secretKind === "PIN" ? "اكتب رمزك" : "اكتب كلمة السر"}</p>
           </div>
         </div>
 
@@ -94,13 +99,17 @@ export default function LoginPage() {
               <span className="text-sm text-white/60">ليس أنت؟</span>
             </button>
 
+            {who.secretKind === "PASSWORD" ? (
+              <PasswordForm busy={busy} error={error} onSubmit={signIn} />
+            ) : (
+            <>
             <div dir="ltr" className={`mb-6 flex justify-center gap-4 ${error ? "shake" : ""}`} key={error ?? "ok"}>
               {[0, 1, 2, 3].map((i) => (
                 <span key={i} className={`h-5 w-5 rounded-full border-2 border-sun transition-colors ${i < pin.length ? "bg-sun" : ""}`} />
               ))}
             </div>
             <div className="mb-4 min-h-[3.5rem]">
-              <ErrorLine msg={error} />
+              <ErrorLine msg={error} onDark />
             </div>
 
             <div dir="ltr" className="mt-auto grid grid-cols-3 gap-3">
@@ -113,10 +122,58 @@ export default function LoginPage() {
                 <Delete size={28} />
               </Key>
             </div>
+            </>
+            )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** For people who sign in with words instead of 4 digits. */
+function PasswordForm({ busy, error, onSubmit }: { busy: boolean; error: string | null; onSubmit: (s: string) => void }) {
+  const [text, setText] = useState("");
+  const [show, setShow] = useState(false);
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (text.trim()) onSubmit(text);
+      }}
+    >
+      <label className="grid gap-2">
+        <span className="font-semibold text-white/80">كلمة السر</span>
+        <div className={`relative ${error ? "shake" : ""}`} key={error ?? "ok"}>
+          <input
+            type={show ? "text" : "password"}
+            dir="rtl"
+            autoFocus
+            autoComplete="current-password"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="field border-white/20 pl-16 text-xl"
+            placeholder="اكتبها كاملة"
+          />
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            aria-label={show ? "إخفاء" : "إظهار"}
+            className="absolute left-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full text-teal hover:bg-teal/5"
+          >
+            {show ? <EyeOff size={22} /> : <Eye size={22} />}
+          </button>
+        </div>
+      </label>
+      <ErrorLine msg={error} onDark />
+      <button className="btn-sun w-full text-xl" disabled={busy || !text.trim()}>
+        {busy ? "لحظة..." : "دخول"}
+      </button>
+    </form>
   );
 }
 

@@ -145,4 +145,5 @@ export type Report = {
 };
 
 export type Settings = { factoryName: string; factoryPhone: string; partnerPercent: string };
-export type UserRow = { id: number; name: string; role: Role; isActive: boolean };
+export type SecretKind = "PIN" | "PASSWORD";
+export type UserRow = { id: number; name: string; role: Role; isActive: boolean; secretKind: SecretKind };

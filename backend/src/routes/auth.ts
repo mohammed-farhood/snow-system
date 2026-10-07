@@ -1,5 +1,5 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
+import { checkSecret } from "../lib/secret";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import prisma from "../lib/prisma";
@@ -19,7 +19,7 @@ router.get(
     const [people, settings] = await Promise.all([
       prisma.user.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, role: true },
+        select: { id: true, name: true, role: true, secretKind: true },
         orderBy: [{ role: "asc" }, { name: "asc" }],
       }),
       readSettings(),
@@ -30,7 +30,8 @@ router.get(
 
 router.post(
   "/login",
-  validate(z.object({ userId: z.number().int(), pin: z.string().regex(/^\d{4}$/) })),
+  // `pin` carries either the 4 digits or the typed password, depending on the person.
+  validate(z.object({ userId: z.number().int(), pin: z.string().min(1).max(400) })),
   h(async (req) => {
     const { userId, pin } = req.body as { userId: number; pin: string };
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -41,7 +42,7 @@ router.post(
       throw new HttpError(429, `محاولات كثيرة. جرّب بعد ${mins} دقيقة`);
     }
 
-    if (!(await bcrypt.compare(pin, user.pin))) {
+    if (!(await checkSecret(user.secretKind, pin, user.pin))) {
       const failed = user.failedPin + 1;
       await prisma.user.update({
         where: { id: user.id },
@@ -50,7 +51,7 @@ router.post(
             ? { failedPin: 0, lockedTil: new Date(Date.now() + LOCK_MINUTES * 60000) }
             : { failedPin: failed },
       });
-      throw new HttpError(401, "الرمز غير صحيح");
+      throw new HttpError(401, user.secretKind === "PIN" ? "الرمز غير صحيح" : "كلمة السر غير صحيحة");
     }
 
     await prisma.user.update({ where: { id: user.id }, data: { failedPin: 0, lockedTil: null } });

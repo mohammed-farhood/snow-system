@@ -50,7 +50,7 @@ if [[ "$MODE" == "--demo" || "$MODE" == "--fresh" || -n "${FIRST_RUN:-}" ]]; the
   if [[ "$MODE" == "--demo" ]]; then
     STAFF_PIN=$(pin)
     SEED_DEMO=1 SEED_OWNER_PIN=$OWNER_PIN SEED_STAFF_PIN=$STAFF_PIN npx tsx prisma/seed.ts >/dev/null
-    echo "== DEMO DATA LOADED. Owner PIN: $OWNER_PIN   Staff PIN (أبو علي، حيدر، مصطفى): $STAFF_PIN"
+    echo "== DEMO DATA LOADED. Owner PIN: $OWNER_PIN   Staff PIN (عبود، حيدر، علي): $STAFF_PIN"
   else
     if [[ "$MODE" == "--fresh" ]]; then npx tsx scripts/wipe.ts; fi
     SEED_OWNER_PIN=$OWNER_PIN npx tsx prisma/seed.ts >/dev/null
