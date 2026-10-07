@@ -16,6 +16,8 @@ import {
   getSuppliers,
   createSupplier,
   updateSupplier,
+  getSettings,
+  updateSettings,
 } from "@/lib/api";
 import { formatCurrency, roleLabel } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -27,7 +29,7 @@ import { Card } from "@/components/ui/Card";
 import { Table } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { RoleBadge, StatusBadge } from "@/components/ui/Badge";
-import { Plus, Edit2, UserX, Package, Truck, Users } from "lucide-react";
+import { Plus, Edit2, UserX, Package, Truck, Users, Snowflake } from "lucide-react";
 import type { User, Product, Supplier } from "@/lib/api";
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
@@ -58,18 +60,46 @@ type SupplierForm = z.infer<typeof supplierSchema>;
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "products" | "suppliers";
+type Tab = "users" | "products" | "suppliers" | "prices";
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "users", label: "العمال والمستخدمين", icon: <Users size={16} /> },
+  { id: "users", label: "المستخدمين", icon: <Users size={16} /> },
   { id: "products", label: "المنتجات", icon: <Package size={16} /> },
   { id: "suppliers", label: "الموردون", icon: <Truck size={16} /> },
+  { id: "prices", label: "أسعار الثلج", icon: <Snowflake size={16} /> },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("users");
+  const [blockPrice, setBlockPrice] = useState("2500");
+  const [crushedPrice, setCrushedPrice] = useState("1500");
+  const [pricesSaving, setPricesSaving] = useState(false);
+  const [pricesSaved, setPricesSaved] = useState(false);
+
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
+  useEffect(() => {
+    if (settings) {
+      setBlockPrice(String(settings.snowBlockPrice));
+      setCrushedPrice(String(settings.snowCrushedPrice));
+    }
+  }, [settings]);
+
+  const savePrices = async () => {
+    setPricesSaving(true);
+    setPricesSaved(false);
+    try {
+      await updateSettings({
+        snowBlockPrice: parseFloat(blockPrice) || 2500,
+        snowCrushedPrice: parseFloat(crushedPrice) || 1500,
+      });
+      setPricesSaved(true);
+      setTimeout(() => setPricesSaved(false), 3000);
+    } finally {
+      setPricesSaving(false);
+    }
+  };
   const [userModal, setUserModal] = useState<{ open: boolean; editUser?: User }>({ open: false });
   const [productModal, setProductModal] = useState<{ open: boolean; editProduct?: Product }>({ open: false });
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; editSupplier?: Supplier }>({ open: false });
@@ -375,6 +405,38 @@ export default function SettingsPage() {
             <Table columns={supplierColumns} data={suppliers ?? []} keyExtractor={(row) => row.id} loading={suppliersLoading} emptyMessage="لا يوجد موردون" />
           </Card>
         </div>
+      )}
+
+      {/* Prices Tab */}
+      {activeTab === "prices" && (
+        <Card title="أسعار الثلج الافتراضية" className="max-w-sm">
+          <p className="text-sm text-[var(--text-muted)] text-right mb-5">
+            هذه الأسعار تُستخدم تلقائياً عند تسجيل الإنتاج من قِبَل العمال.
+          </p>
+          <div className="space-y-4">
+            <Input
+              label="سعر القالب الواحد (د.ع)"
+              type="number"
+              min="0"
+              value={blockPrice}
+              onChange={(e) => setBlockPrice(e.target.value)}
+            />
+            <Input
+              label="سعر المجروش (لكل وحدة) (د.ع)"
+              type="number"
+              min="0"
+              value={crushedPrice}
+              onChange={(e) => setCrushedPrice(e.target.value)}
+            />
+            <Button
+              onClick={savePrices}
+              loading={pricesSaving}
+              className="w-full"
+            >
+              {pricesSaved ? "✓ تم الحفظ" : "حفظ الأسعار"}
+            </Button>
+          </div>
+        </Card>
       )}
 
       {/* User Modal */}

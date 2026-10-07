@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { PaymentType, SnowType } from "@prisma/client";
 import prisma from "../lib/prisma";
+import { readSettings } from "./settingsController";
 
 // ─── Receipt number generator ─────────────────────────────────────────────────
 async function generateSnowReceiptNumber(): Promise<string> {
@@ -148,10 +149,14 @@ export const createProduction = async (
       wastedBlocks?: number;
       blocksSoldWhole?: number;
       blocksSoldCrushed?: number;
-      pricePerBlock: number;
-      pricePerCrushed: number;
+      pricePerBlock?: number;
+      pricePerCrushed?: number;
       notes?: string;
     };
+
+    const settings = readSettings();
+    const resolvedBlockPrice = pricePerBlock ?? settings.snowBlockPrice;
+    const resolvedCrushedPrice = pricePerCrushed ?? settings.snowCrushedPrice;
 
     const production = await prisma.snowProduction.create({
       data: {
@@ -160,8 +165,8 @@ export const createProduction = async (
         wastedBlocks: wastedBlocks ?? 0,
         blocksSoldWhole: blocksSoldWhole ?? 0,
         blocksSoldCrushed: blocksSoldCrushed ?? 0,
-        pricePerBlock,
-        pricePerCrushed,
+        pricePerBlock: resolvedBlockPrice,
+        pricePerCrushed: resolvedCrushedPrice,
         notes,
         createdById: req.user!.id,
       },

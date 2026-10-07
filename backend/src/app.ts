@@ -16,6 +16,7 @@ import expensesRoutes from "./routes/expenses";
 import customersRoutes from "./routes/customers";
 import reportsRoutes from "./routes/reports";
 import dashboardRoutes from "./routes/dashboard";
+import settingsRoutes from "./routes/settings";
 
 // Middleware
 import { errorHandler, notFound } from "./middleware/errorHandler";
@@ -71,6 +72,7 @@ app.use("/api/expenses", expensesRoutes);
 app.use("/api/customers", customersRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/settings", settingsRoutes);
 
 // ─── Error Handlers ───────────────────────────────────────────────────────────
 app.use(notFound);

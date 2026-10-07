@@ -27,8 +27,8 @@ const createProductionSchema = z.object({
   wastedBlocks: z.number().int().min(0).default(0),
   blocksSoldWhole: z.number().int().min(0).default(0),
   blocksSoldCrushed: z.number().int().min(0).default(0),
-  pricePerBlock: z.number().positive("سعر البلوكة يجب أن يكون موجباً"),
-  pricePerCrushed: z.number().positive("سعر الثلج المجروش يجب أن يكون موجباً"),
+  pricePerBlock: z.number().positive("سعر البلوكة يجب أن يكون موجباً").optional(),
+  pricePerCrushed: z.number().positive("سعر الثلج المجروش يجب أن يكون موجباً").optional(),
   notes: z.string().optional(),
 });
 
@@ -68,10 +68,9 @@ router.get("/productions", getProductions);
 // GET /api/snow/productions/:id
 router.get("/productions/:id", getProductionById);
 
-// POST /api/snow/productions
+// POST /api/snow/productions — all authenticated users can log production
 router.post(
   "/productions",
-  authorize(Role.OWNER, Role.SUPERVISOR),
   validate(createProductionSchema),
   createProduction
 );

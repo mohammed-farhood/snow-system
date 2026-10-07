@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +19,8 @@ import { PaymentBadge } from "@/components/ui/Badge";
 import { Plus, Trash2, Printer, ShoppingCart } from "lucide-react";
 import { printReceipt } from "@/lib/print";
 import type { GoodsSale, Product } from "@/lib/api";
+import { getUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 const saleItemSchema = z.object({
   productId: z.coerce.number().min(1, "اختر المنتج"),
@@ -38,9 +40,15 @@ const saleSchema = z.object({
 type SaleForm = z.infer<typeof saleSchema>;
 
 export default function GoodsPage() {
+  const router = useRouter();
+  const user = getUser();
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [quickSaleProduct, setQuickSaleProduct] = useState<Product | null>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (user?.role === "WORKER") router.replace("/worker");
+  }, []);
 
   const { data: salesData, isLoading } = useQuery({
     queryKey: ["goods-sales"],

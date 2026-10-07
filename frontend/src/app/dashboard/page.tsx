@@ -26,7 +26,12 @@ import {
   TrendingUp,
   Snowflake,
   Users2,
+  Package,
+  ShoppingBag,
+  Wallet,
+  ClipboardList,
 } from "lucide-react";
+import Link from "next/link";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -51,6 +56,27 @@ export default function DashboardPage() {
         title="لوحة التحكم"
         subtitle={`مرحباً، ${user?.name ?? ""}!`}
       />
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {[
+          { href: "/snow/production", icon: <Snowflake size={22} />, label: "تسجيل إنتاج", color: "text-[var(--accent)] bg-[var(--accent-muted)]" },
+          { href: "/snow/sales", icon: <ShoppingBag size={22} />, label: "بيع ثلج", color: "text-blue-400 bg-blue-500/10" },
+          { href: "/goods", icon: <Package size={22} />, label: "بيع بضاعة", color: "text-green-400 bg-green-500/10" },
+          { href: "/expenses", icon: <Wallet size={22} />, label: "مصروف جديد", color: "text-red-400 bg-red-500/10" },
+        ].map((action) => (
+          <Link
+            key={action.href}
+            href={action.href}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--accent)] hover:shadow-md transition-all text-center"
+          >
+            <span className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color}`}>
+              {action.icon}
+            </span>
+            <span className="text-sm font-bold text-[var(--text)]">{action.label}</span>
+          </Link>
+        ))}
+      </div>
 
       {/* Period Selector */}
       <div className="flex gap-2 mb-6 justify-end">

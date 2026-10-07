@@ -318,13 +318,13 @@ export async function getSnowProductions(params?: {
 }
 
 export async function createSnowProduction(payload: {
-  date: string;
+  date?: string;
   totalBlocks: number;
   wastedBlocks: number;
   blocksSoldWhole: number;
   blocksSoldCrushed: number;
-  pricePerBlock: number;
-  pricePerCrushed: number;
+  pricePerBlock?: number;
+  pricePerCrushed?: number;
   notes?: string;
 }): Promise<SnowProduction> {
   const { data } = await api.post<SnowProduction>("/api/snow/productions", payload);
@@ -859,4 +859,21 @@ export async function updateUser(id: number, payload: Partial<User & { password?
 
 export async function deactivateUser(id: number): Promise<void> {
   await api.put(`/api/users/${id}`, { isActive: false });
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export interface AppSettings {
+  snowBlockPrice: number;
+  snowCrushedPrice: number;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const { data } = await api.get<AppSettings>("/api/settings");
+  return data;
+}
+
+export async function updateSettings(payload: Partial<AppSettings>): Promise<AppSettings> {
+  const { data } = await api.put<AppSettings>("/api/settings", payload);
+  return data;
 }

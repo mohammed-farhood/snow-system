@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +19,8 @@ import { PaymentBadge } from "@/components/ui/Badge";
 import { Plus, Printer } from "lucide-react";
 import { printReceipt } from "@/lib/print";
 import type { SnowSale } from "@/lib/api";
+import { getUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 const saleSchema = z.object({
   customerName: z.string().min(1, "يرجى إدخال اسم العميل"),
@@ -34,8 +36,14 @@ const saleSchema = z.object({
 type SaleForm = z.infer<typeof saleSchema>;
 
 export default function SnowSalesPage() {
+  const router = useRouter();
+  const user = getUser();
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (user?.role === "WORKER") router.replace("/worker");
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["snow-sales"],

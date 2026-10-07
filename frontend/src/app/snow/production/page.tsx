@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +18,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Plus, Snowflake, Printer } from "lucide-react";
 import { printProduction } from "@/lib/print";
 import type { SnowProduction } from "@/lib/api";
+import { getUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 const productionSchema = z.object({
   date: z.string().min(1, "يرجى اختيار التاريخ"),
@@ -33,8 +35,14 @@ const productionSchema = z.object({
 type ProductionForm = z.infer<typeof productionSchema>;
 
 export default function SnowProductionPage() {
+  const router = useRouter();
+  const user = getUser();
   const [modalOpen, setModalOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (user?.role === "WORKER") router.replace("/worker");
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["snow-productions"],

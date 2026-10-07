@@ -11,3 +11,7 @@ Thumbs.db
 
 prisma/dev.db
 prisma/dev.db-journal
+backend/data/
+
+# graphify knowledge graph — regenerated locally by git hook
+/graphify-out/
