@@ -1,37 +1,27 @@
 {
-  "name": "snow-factory-frontend",
-  "version": "1.0.0",
+  "name": "snow-factory-web",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3002",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -p 3002",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "15.3.3",
-    "next-pwa": "^5.6.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "@tanstack/react-query": "^5.62.0",
-    "axios": "^1.7.9",
-    "date-fns": "^4.1.0",
-    "react-hook-form": "^7.54.2",
-    "zod": "^3.24.2",
-    "@hookform/resolvers": "^3.9.1",
-    "recharts": "^2.14.1",
     "lucide-react": "^0.468.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.5"
+    "next": "15.3.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "eslint": "^9.0.0",
-    "eslint-config-next": "15.3.3",
+    "autoprefixer": "^10.4.20",
     "postcss": "^8.0.0",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.3",
-    "autoprefixer": "^10.4.20"
+    "typescript": "^5.7.3"
   }
 }

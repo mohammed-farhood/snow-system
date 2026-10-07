@@ -1,493 +1,291 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import {
-  getUsers,
-  createUser,
-  updateUser,
-  deactivateUser,
-  getProducts,
-  createProduct,
-  updateProduct,
-  getSuppliers,
-  createSupplier,
-  updateSupplier,
-  getSettings,
-  updateSettings,
-} from "@/lib/api";
-import { formatCurrency, roleLabel } from "@/lib/utils";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Card } from "@/components/ui/Card";
-import { Table } from "@/components/ui/Table";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { RoleBadge, StatusBadge } from "@/components/ui/Badge";
-import { Plus, Edit2, UserX, Package, Truck, Users, Snowflake } from "lucide-react";
-import type { User, Product, Supplier } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Snowflake, Package, UserRound } from "lucide-react";
+import { api, post, put, type Product, type Role, type Settings, type UserRow } from "@/lib/api";
+import { ROLE } from "@/lib/format";
+import { Shell, useMe } from "@/components/Shell";
+import { AmountField, ErrorLine, Money, PageTitle, Sheet, Skeleton } from "@/components/ui";
 
-// ─── Schemas ────────────────────────────────────────────────────────────────
-
-const userSchema = z.object({
-  name: z.string().min(1, "يرجى إدخال الاسم"),
-  username: z.string().min(3, "اسم المستخدم 3 أحرف على الأقل"),
-  password: z.string().min(6, "كلمة المرور 6 أحرف على الأقل").optional().or(z.literal("")),
-  role: z.enum(["OWNER", "SUPERVISOR", "WORKER"]),
-});
-
-const productSchema = z.object({
-  name: z.string().min(1, "يرجى إدخال اسم المنتج"),
-  unit: z.string().min(1, "يرجى إدخال الوحدة"),
-  currentPrice: z.coerce.number().min(0),
-  stockQuantity: z.coerce.number().min(0),
-});
-
-const supplierSchema = z.object({
-  name: z.string().min(1, "يرجى إدخال اسم المورد"),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-});
-
-type UserForm = z.infer<typeof userSchema>;
-type ProductForm = z.infer<typeof productSchema>;
-type SupplierForm = z.infer<typeof supplierSchema>;
-
-// ─── Tabs ────────────────────────────────────────────────────────────────────
-
-type Tab = "users" | "products" | "suppliers" | "prices";
-
-const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "users", label: "المستخدمين", icon: <Users size={16} /> },
-  { id: "products", label: "المنتجات", icon: <Package size={16} /> },
-  { id: "suppliers", label: "الموردون", icon: <Truck size={16} /> },
-  { id: "prices", label: "أسعار الثلج", icon: <Snowflake size={16} /> },
-];
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+type Tab = "products" | "people" | "factory";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("users");
-  const [blockPrice, setBlockPrice] = useState("2500");
-  const [crushedPrice, setCrushedPrice] = useState("1500");
-  const [pricesSaving, setPricesSaving] = useState(false);
-  const [pricesSaved, setPricesSaved] = useState(false);
-
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  useEffect(() => {
-    if (settings) {
-      setBlockPrice(String(settings.snowBlockPrice));
-      setCrushedPrice(String(settings.snowCrushedPrice));
-    }
-  }, [settings]);
-
-  const savePrices = async () => {
-    setPricesSaving(true);
-    setPricesSaved(false);
-    try {
-      await updateSettings({
-        snowBlockPrice: parseFloat(blockPrice) || 2500,
-        snowCrushedPrice: parseFloat(crushedPrice) || 1500,
-      });
-      setPricesSaved(true);
-      setTimeout(() => setPricesSaved(false), 3000);
-    } finally {
-      setPricesSaving(false);
-    }
-  };
-  const [userModal, setUserModal] = useState<{ open: boolean; editUser?: User }>({ open: false });
-  const [productModal, setProductModal] = useState<{ open: boolean; editProduct?: Product }>({ open: false });
-  const [supplierModal, setSupplierModal] = useState<{ open: boolean; editSupplier?: Supplier }>({ open: false });
-  const queryClient = useQueryClient();
-
-  // ─── Users ────────────────────────────────────────────────────────
-
-  const { data: users, isLoading: usersLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: getUsers,
-  });
-
-  const createUserMutation = useMutation({
-    mutationFn: createUser,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["users"] }); setUserModal({ open: false }); userReset(); },
-  });
-
-  const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof updateUser>[1] }) => updateUser(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["users"] }); setUserModal({ open: false }); userReset(); },
-  });
-
-  const deactivateUserMutation = useMutation({
-    mutationFn: deactivateUser,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
-  });
-
-  const {
-    register: userRegister,
-    handleSubmit: handleUserSubmit,
-    reset: userReset,
-    setValue: userSetValue,
-    formState: { errors: userErrors },
-  } = useForm<UserForm>({ resolver: zodResolver(userSchema), defaultValues: { role: "WORKER" } });
-
-  useEffect(() => {
-    if (userModal.editUser) {
-      userSetValue("name", userModal.editUser.name);
-      userSetValue("username", userModal.editUser.username);
-      userSetValue("role", userModal.editUser.role);
-      userSetValue("password", "");
-    } else {
-      userReset({ role: "WORKER" });
-    }
-  }, [userModal]);
-
-  const onUserSubmit = (data: UserForm) => {
-    if (userModal.editUser) {
-      updateUserMutation.mutate({ id: userModal.editUser.id, data: { name: data.name, role: data.role, ...(data.password ? { password: data.password } : {}) } });
-    } else {
-      createUserMutation.mutate({ name: data.name, username: data.username, password: data.password!, role: data.role });
-    }
-  };
-
-  // ─── Products ─────────────────────────────────────────────────────
-
-  const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
-  });
-
-  const createProductMutation = useMutation({
-    mutationFn: createProduct,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["products"] }); setProductModal({ open: false }); productReset(); },
-  });
-
-  const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof updateProduct>[1] }) => updateProduct(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["products"] }); setProductModal({ open: false }); productReset(); },
-  });
-
-  const {
-    register: productRegister,
-    handleSubmit: handleProductSubmit,
-    reset: productReset,
-    setValue: productSetValue,
-    formState: { errors: productErrors },
-  } = useForm<ProductForm>({ resolver: zodResolver(productSchema), defaultValues: { stockQuantity: 0 } });
-
-  useEffect(() => {
-    if (productModal.editProduct) {
-      productSetValue("name", productModal.editProduct.name);
-      productSetValue("unit", productModal.editProduct.unit);
-      productSetValue("currentPrice", productModal.editProduct.currentPrice);
-      productSetValue("stockQuantity", productModal.editProduct.stockQuantity);
-    } else {
-      productReset({ stockQuantity: 0 });
-    }
-  }, [productModal]);
-
-  const onProductSubmit = (data: ProductForm) => {
-    if (productModal.editProduct) {
-      updateProductMutation.mutate({ id: productModal.editProduct.id, data });
-    } else {
-      createProductMutation.mutate(data);
-    }
-  };
-
-  // ─── Suppliers ────────────────────────────────────────────────────
-
-  const { data: suppliers, isLoading: suppliersLoading } = useQuery({
-    queryKey: ["suppliers"],
-    queryFn: getSuppliers,
-  });
-
-  const createSupplierMutation = useMutation({
-    mutationFn: createSupplier,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["suppliers"] }); setSupplierModal({ open: false }); supplierReset(); },
-  });
-
-  const updateSupplierMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof updateSupplier>[1] }) => updateSupplier(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["suppliers"] }); setSupplierModal({ open: false }); supplierReset(); },
-  });
-
-  const {
-    register: supplierRegister,
-    handleSubmit: handleSupplierSubmit,
-    reset: supplierReset,
-    setValue: supplierSetValue,
-    formState: { errors: supplierErrors },
-  } = useForm<SupplierForm>({ resolver: zodResolver(supplierSchema) });
-
-  useEffect(() => {
-    if (supplierModal.editSupplier) {
-      supplierSetValue("name", supplierModal.editSupplier.name);
-      supplierSetValue("phone", supplierModal.editSupplier.phone ?? "");
-      supplierSetValue("address", supplierModal.editSupplier.address ?? "");
-    } else {
-      supplierReset();
-    }
-  }, [supplierModal]);
-
-  const onSupplierSubmit = (data: SupplierForm) => {
-    if (supplierModal.editSupplier) {
-      updateSupplierMutation.mutate({ id: supplierModal.editSupplier.id, data });
-    } else {
-      createSupplierMutation.mutate(data);
-    }
-  };
-
-  // ─── Columns ──────────────────────────────────────────────────────
-
-  const userColumns = [
-    {
-      key: "name",
-      header: "الاسم",
-      render: (row: User) => <span className="font-semibold">{row.name}</span>,
-    },
-    {
-      key: "username",
-      header: "اسم المستخدم",
-      render: (row: User) => <span className="font-mono text-sm">{row.username}</span>,
-    },
-    {
-      key: "role",
-      header: "الصلاحية",
-      render: (row: User) => <RoleBadge role={row.role} />,
-    },
-    {
-      key: "isActive",
-      header: "الحالة",
-      render: (row: User) => <StatusBadge active={row.isActive} />,
-    },
-    {
-      key: "actions",
-      header: "",
-      render: (row: User) => (
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" icon={<Edit2 size={13} />} onClick={(e) => { e.stopPropagation(); setUserModal({ open: true, editUser: row }); }}>تعديل</Button>
-          {row.isActive && (
-            <Button variant="danger" size="sm" icon={<UserX size={13} />} loading={deactivateUserMutation.isPending} onClick={(e) => { e.stopPropagation(); deactivateUserMutation.mutate(row.id); }}>تعطيل</Button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
-  const productColumns = [
-    {
-      key: "name",
-      header: "المنتج",
-      render: (row: Product) => <span className="font-semibold">{row.name}</span>,
-    },
-    {
-      key: "unit",
-      header: "الوحدة",
-      render: (row: Product) => <span className="text-sm text-[var(--text-muted)]">{row.unit}</span>,
-    },
-    {
-      key: "currentPrice",
-      header: "السعر الحالي",
-      render: (row: Product) => <span className="font-bold">{formatCurrency(row.currentPrice)}</span>,
-    },
-    {
-      key: "stockQuantity",
-      header: "الكمية",
-      render: (row: Product) => <span className="text-sm">{row.stockQuantity}</span>,
-    },
-    {
-      key: "isActive",
-      header: "الحالة",
-      render: (row: Product) => <StatusBadge active={row.isActive} />,
-    },
-    {
-      key: "actions",
-      header: "",
-      render: (row: Product) => (
-        <Button variant="ghost" size="sm" icon={<Edit2 size={13} />} onClick={(e) => { e.stopPropagation(); setProductModal({ open: true, editProduct: row }); }}>تعديل</Button>
-      ),
-    },
-  ];
-
-  const supplierColumns = [
-    {
-      key: "name",
-      header: "المورد",
-      render: (row: Supplier) => <span className="font-semibold">{row.name}</span>,
-    },
-    {
-      key: "phone",
-      header: "الهاتف",
-      render: (row: Supplier) => <span className="text-sm text-[var(--text-muted)]">{row.phone ?? "-"}</span>,
-    },
-    {
-      key: "outstandingDebt",
-      header: "الدين المستحق",
-      render: (row: Supplier) =>
-        row.outstandingDebt > 0 ? (
-          <span className="text-[var(--error)] font-bold">{formatCurrency(row.outstandingDebt)}</span>
-        ) : (
-          <span className="text-[var(--success)] text-xs">لا يوجد</span>
-        ),
-    },
-    {
-      key: "actions",
-      header: "",
-      render: (row: Supplier) => (
-        <Button variant="ghost" size="sm" icon={<Edit2 size={13} />} onClick={(e) => { e.stopPropagation(); setSupplierModal({ open: true, editSupplier: row }); }}>تعديل</Button>
-      ),
-    },
-  ];
-
   return (
-    <AppLayout>
-      <PageHeader title="الإعدادات" subtitle="إدارة المستخدمين والمنتجات والموردين" />
+    <Shell roles={["OWNER"]}>
+      <SettingsView />
+    </Shell>
+  );
+}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-              activeTab === tab.id
-                ? "bg-[var(--accent)] text-white"
-                : "text-[var(--text-muted)] hover:text-[var(--text)]"
-            }`}
-          >
-            {tab.icon}
-            <span className="hidden sm:inline">{tab.label}</span>
+function SettingsView() {
+  const [tab, setTab] = useState<Tab>("products");
+  return (
+    <div className="mx-auto max-w-3xl">
+      <PageTitle title="الإعدادات" />
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {(
+          [
+            ["products", "الأسعار"],
+            ["people", "العمال"],
+            ["factory", "المصنع"],
+          ] as [Tab, string][]
+        ).map(([id, label]) => (
+          <button key={id} className="chip justify-center" aria-pressed={tab === id} onClick={() => setTab(id)}>
+            {label}
           </button>
         ))}
       </div>
+      {tab === "products" && <Products />}
+      {tab === "people" && <People />}
+      {tab === "factory" && <Factory />}
+    </div>
+  );
+}
 
-      {/* Users Tab */}
-      {activeTab === "users" && (
-        <div>
-          <div className="flex justify-start mb-4">
-            <Button icon={<Plus size={16} />} onClick={() => setUserModal({ open: true })}>
-              إضافة مستخدم
-            </Button>
+// ─── Products & prices ───────────────────────────────────────────────────────
+
+type Draft = { id?: number; name: string; kind: "ICE" | "GOODS"; unit: string; price: number; blocksPerUnit: number; openingStock: number; isActive: boolean };
+const blank: Draft = { name: "", kind: "GOODS", unit: "كارتون", price: 0, blocksPerUnit: 1, openingStock: 0, isActive: true };
+
+function Products() {
+  const { data } = useQuery({ queryKey: ["products"], queryFn: () => api<Product[]>("/products") });
+  const [edit, setEdit] = useState<Draft | null>(null);
+  if (!data) return <Skeleton h="h-60" />;
+  return (
+    <div className="grid gap-2">
+      {data.map((p) => (
+        <button key={p.id} onClick={() => setEdit({ ...p })} className={`panel flex items-center gap-3 p-3 text-right ${p.isActive ? "" : "opacity-50"}`}>
+          <span className={`grid h-11 w-11 place-items-center rounded-full ${p.kind === "ICE" ? "bg-teal text-sun" : "bg-teal/10 text-teal"}`}>
+            {p.kind === "ICE" ? <Snowflake size={20} /> : <Package size={20} />}
+          </span>
+          <span className="flex-1">
+            <span className="block font-bold">{p.name}</span>
+            <span className="text-sm text-muted">
+              {p.isActive ? <>بالمخزن <span dir="ltr">{p.stock}</span> {p.unit}</> : "موقوف"}
+            </span>
+          </span>
+          <Money v={p.price} className="num text-xl text-teal" />
+        </button>
+      ))}
+      <button className="btn-ghost mt-2" onClick={() => setEdit({ ...blank })}>
+        <Plus /> مادة جديدة
+      </button>
+      <ProductSheet draft={edit} onClose={() => setEdit(null)} />
+    </div>
+  );
+}
+
+function ProductSheet({ draft, onClose }: { draft: Draft | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [d, setD] = useState<Draft>(blank);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (draft) {
+      setD(draft);
+      setError(null);
+    }
+  }, [draft]);
+  const save = async () => {
+    try {
+      const body = { name: d.name, kind: d.kind, unit: d.unit, price: d.price, blocksPerUnit: Number(d.blocksPerUnit) || 1, openingStock: d.openingStock, isActive: d.isActive };
+      if (d.id) await put(`/products/${d.id}`, body);
+      else await post("/products", body);
+      qc.invalidateQueries();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  return (
+    <Sheet open={!!draft} onClose={onClose} title={d.id ? d.name : "مادة جديدة"}>
+      <div className="grid gap-4">
+        {!d.id && (
+          <div className="grid grid-cols-2 gap-2">
+            <button className="chip justify-center" aria-pressed={d.kind === "GOODS"} onClick={() => setD({ ...d, kind: "GOODS", unit: "كارتون" })}>بضاعة نشتريها</button>
+            <button className="chip justify-center" aria-pressed={d.kind === "ICE"} onClick={() => setD({ ...d, kind: "ICE", unit: "قالب" })}>ثلج من إنتاجنا</button>
           </div>
-          <Card noPadding>
-            <Table columns={userColumns} data={users ?? []} keyExtractor={(row) => row.id} loading={usersLoading} emptyMessage="لا يوجد مستخدمون" />
-          </Card>
-        </div>
-      )}
-
-      {/* Products Tab */}
-      {activeTab === "products" && (
-        <div>
-          <div className="flex justify-start mb-4">
-            <Button icon={<Plus size={16} />} onClick={() => setProductModal({ open: true })}>
-              إضافة منتج
-            </Button>
-          </div>
-          <Card noPadding>
-            <Table columns={productColumns} data={products ?? []} keyExtractor={(row) => row.id} loading={productsLoading} emptyMessage="لا توجد منتجات" />
-          </Card>
-        </div>
-      )}
-
-      {/* Suppliers Tab */}
-      {activeTab === "suppliers" && (
-        <div>
-          <div className="flex justify-start mb-4">
-            <Button icon={<Plus size={16} />} onClick={() => setSupplierModal({ open: true })}>
-              إضافة مورد
-            </Button>
-          </div>
-          <Card noPadding>
-            <Table columns={supplierColumns} data={suppliers ?? []} keyExtractor={(row) => row.id} loading={suppliersLoading} emptyMessage="لا يوجد موردون" />
-          </Card>
-        </div>
-      )}
-
-      {/* Prices Tab */}
-      {activeTab === "prices" && (
-        <Card title="أسعار الثلج الافتراضية" className="max-w-sm">
-          <p className="text-sm text-[var(--text-muted)] text-right mb-5">
-            هذه الأسعار تُستخدم تلقائياً عند تسجيل الإنتاج من قِبَل العمال.
-          </p>
-          <div className="space-y-4">
-            <Input
-              label="سعر القالب الواحد (د.ع)"
-              type="number"
-              min="0"
-              value={blockPrice}
-              onChange={(e) => setBlockPrice(e.target.value)}
+        )}
+        <label>
+          <span className="label">الاسم</span>
+          <input className="field" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+        </label>
+        <AmountField label="سعر البيع" value={d.price} onChange={(v) => setD({ ...d, price: v })} />
+        <label>
+          <span className="label">الوحدة</span>
+          <input className="field" value={d.unit} onChange={(e) => setD({ ...d, unit: e.target.value })} placeholder="قالب، كيس، كارتون..." />
+        </label>
+        {d.kind === "ICE" ? (
+          <label>
+            <span className="label">كل {d.unit || "وحدة"} يستهلك كم قالب؟</span>
+            <input className="field" dir="ltr" inputMode="decimal" value={String(d.blocksPerUnit)} onChange={(e) => setD({ ...d, blocksPerUnit: e.target.value as unknown as number })} />
+            <span className="text-sm text-muted">القالب الكامل = 1. كيس مجروش من نص قالب = 0.5</span>
+          </label>
+        ) : (
+          <label>
+            <span className="label">كم عندك منه هسه؟ (رصيد أول مرة)</span>
+            <input
+              className="field"
+              dir="ltr"
+              inputMode="numeric"
+              value={d.openingStock || ""}
+              placeholder="0"
+              onChange={(e) => setD({ ...d, openingStock: parseInt(e.target.value.replace(/\D/g, "") || "0", 10) })}
             />
-            <Input
-              label="سعر المجروش (لكل وحدة) (د.ع)"
-              type="number"
-              min="0"
-              value={crushedPrice}
-              onChange={(e) => setCrushedPrice(e.target.value)}
-            />
-            <Button
-              onClick={savePrices}
-              loading={pricesSaving}
-              className="w-full"
-            >
-              {pricesSaved ? "✓ تم الحفظ" : "حفظ الأسعار"}
-            </Button>
+          </label>
+        )}
+        {d.id && (
+          <label className="flex items-center justify-between rounded-btn bg-paper p-4">
+            <span className="font-bold">يظهر بشاشة البيع</span>
+            <input type="checkbox" className="h-6 w-6 accent-[var(--teal)]" checked={d.isActive} onChange={(e) => setD({ ...d, isActive: e.target.checked })} />
+          </label>
+        )}
+        <ErrorLine msg={error} />
+        <button className="btn-sun" disabled={!d.name.trim()} onClick={save}>حفظ</button>
+      </div>
+    </Sheet>
+  );
+}
+
+// ─── People & PINs ───────────────────────────────────────────────────────────
+
+type Person = { id?: number; name: string; role: Role; isActive: boolean; pin: string };
+
+function People() {
+  const me = useMe();
+  const { data } = useQuery({ queryKey: ["users"], queryFn: () => api<UserRow[]>("/users") });
+  const [edit, setEdit] = useState<Person | null>(null);
+  if (!data) return <Skeleton h="h-60" />;
+  return (
+    <div className="grid gap-2">
+      <p className="mb-1 text-muted">كل واحد يدخل باسمه ورمز من 4 أرقام.</p>
+      {data.map((u) => (
+        <button key={u.id} onClick={() => setEdit({ ...u, pin: "" })} className={`panel flex items-center gap-3 p-3 text-right ${u.isActive ? "" : "opacity-50"}`}>
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-teal/10 text-teal"><UserRound size={20} /></span>
+          <span className="flex-1">
+            <span className="block font-bold">{u.name} {u.id === me?.id && <span className="text-sm text-muted">(أنت)</span>}</span>
+            <span className="text-sm text-muted">{u.isActive ? ROLE[u.role] : "موقوف"}</span>
+          </span>
+        </button>
+      ))}
+      <button className="btn-ghost mt-2" onClick={() => setEdit({ name: "", role: "WORKER", isActive: true, pin: "" })}>
+        <Plus /> شخص جديد
+      </button>
+      <PersonSheet p={edit} self={edit?.id === me?.id} onClose={() => setEdit(null)} />
+    </div>
+  );
+}
+
+function PersonSheet({ p, self, onClose }: { p: Person | null; self: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [d, setD] = useState<Person>({ name: "", role: "WORKER", isActive: true, pin: "" });
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (p) {
+      setD(p);
+      setError(null);
+    }
+  }, [p]);
+  const save = async () => {
+    try {
+      if (d.id) await put(`/users/${d.id}`, { name: d.name, role: d.role, isActive: d.isActive, ...(d.pin ? { pin: d.pin } : {}) });
+      else await post("/users", { name: d.name, role: d.role, pin: d.pin });
+      qc.invalidateQueries();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  return (
+    <Sheet open={!!p} onClose={onClose} title={d.id ? d.name : "شخص جديد"}>
+      <div className="grid gap-4">
+        <label>
+          <span className="label">الاسم</span>
+          <input className="field" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+        </label>
+        {!self && (
+          <div>
+            <span className="label">الصلاحية</span>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["WORKER", "SUPERVISOR", "OWNER"] as Role[]).map((r) => (
+                <button key={r} className="chip justify-center" aria-pressed={d.role === r} onClick={() => setD({ ...d, role: r })}>
+                  {ROLE[r]}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              {d.role === "WORKER" && "يبيع، يسجّل إنتاج، ويستلم ديون. ما يشوف الحسابات."}
+              {d.role === "SUPERVISOR" && "كل شي غير الإعدادات."}
+              {d.role === "OWNER" && "كل شي."}
+            </p>
           </div>
-        </Card>
-      )}
+        )}
+        <label>
+          <span className="label">{d.id ? "رمز جديد (اتركه فارغ إذا ما تريد تغيّره)" : "الرمز (4 أرقام)"}</span>
+          <input
+            className="field num text-center text-3xl tracking-[0.5em]"
+            dir="ltr"
+            inputMode="numeric"
+            maxLength={4}
+            value={d.pin}
+            onChange={(e) => setD({ ...d, pin: e.target.value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/\D/g, "").slice(0, 4) })}
+          />
+        </label>
+        {d.id && !self && (
+          <label className="flex items-center justify-between rounded-btn bg-paper p-4">
+            <span className="font-bold">يقدر يدخل</span>
+            <input type="checkbox" className="h-6 w-6 accent-[var(--teal)]" checked={d.isActive} onChange={(e) => setD({ ...d, isActive: e.target.checked })} />
+          </label>
+        )}
+        <ErrorLine msg={error} />
+        <button className="btn-sun" disabled={!d.name.trim() || (!d.id && d.pin.length !== 4) || (!!d.pin && d.pin.length !== 4)} onClick={save}>
+          حفظ
+        </button>
+      </div>
+    </Sheet>
+  );
+}
 
-      {/* User Modal */}
-      <Modal isOpen={userModal.open} onClose={() => { setUserModal({ open: false }); userReset(); }} title={userModal.editUser ? "تعديل المستخدم" : "إضافة مستخدم جديد"} size="sm">
-        <form onSubmit={handleUserSubmit(onUserSubmit)} className="space-y-4">
-          <Input label="الاسم الكامل" error={userErrors.name?.message} {...userRegister("name")} />
-          <Input label="اسم المستخدم" error={userErrors.username?.message} {...userRegister("username")} disabled={!!userModal.editUser} />
-          <Input label={userModal.editUser ? "كلمة المرور الجديدة (اتركها فارغة للإبقاء)" : "كلمة المرور"} type="password" error={userErrors.password?.message} {...userRegister("password")} />
-          <Select label="الصلاحية" options={[{ value: "OWNER", label: "مالك" }, { value: "SUPERVISOR", label: "مشرف" }, { value: "WORKER", label: "عامل" }]} error={userErrors.role?.message} {...userRegister("role")} />
-          {(createUserMutation.isError || updateUserMutation.isError) && (
-            <p className="text-sm text-[var(--error)] text-right">حدث خطأ أثناء الحفظ.</p>
-          )}
-          <ModalFooter>
-            <Button variant="secondary" onClick={() => { setUserModal({ open: false }); userReset(); }} type="button">إلغاء</Button>
-            <Button type="submit" loading={createUserMutation.isPending || updateUserMutation.isPending}>حفظ</Button>
-          </ModalFooter>
-        </form>
-      </Modal>
+// ─── Factory ─────────────────────────────────────────────────────────────────
 
-      {/* Product Modal */}
-      <Modal isOpen={productModal.open} onClose={() => { setProductModal({ open: false }); productReset(); }} title={productModal.editProduct ? "تعديل المنتج" : "إضافة منتج جديد"} size="sm">
-        <form onSubmit={handleProductSubmit(onProductSubmit)} className="space-y-4">
-          <Input label="اسم المنتج" error={productErrors.name?.message} {...productRegister("name")} />
-          <Input label="الوحدة (قطعة، كيلو، علبة...)" error={productErrors.unit?.message} {...productRegister("unit")} />
-          <Input label="السعر الحالي (د.ع)" type="number" min="0" error={productErrors.currentPrice?.message} {...productRegister("currentPrice")} />
-          <Input label="الكمية في المخزن" type="number" min="0" {...productRegister("stockQuantity")} />
-          {(createProductMutation.isError || updateProductMutation.isError) && (
-            <p className="text-sm text-[var(--error)] text-right">حدث خطأ أثناء الحفظ.</p>
-          )}
-          <ModalFooter>
-            <Button variant="secondary" onClick={() => { setProductModal({ open: false }); productReset(); }} type="button">إلغاء</Button>
-            <Button type="submit" loading={createProductMutation.isPending || updateProductMutation.isPending}>حفظ</Button>
-          </ModalFooter>
-        </form>
-      </Modal>
-
-      {/* Supplier Modal */}
-      <Modal isOpen={supplierModal.open} onClose={() => { setSupplierModal({ open: false }); supplierReset(); }} title={supplierModal.editSupplier ? "تعديل المورد" : "إضافة مورد جديد"} size="sm">
-        <form onSubmit={handleSupplierSubmit(onSupplierSubmit)} className="space-y-4">
-          <Input label="اسم المورد" error={supplierErrors.name?.message} {...supplierRegister("name")} />
-          <Input label="رقم الهاتف" type="tel" {...supplierRegister("phone")} />
-          <Input label="العنوان" {...supplierRegister("address")} />
-          {(createSupplierMutation.isError || updateSupplierMutation.isError) && (
-            <p className="text-sm text-[var(--error)] text-right">حدث خطأ أثناء الحفظ.</p>
-          )}
-          <ModalFooter>
-            <Button variant="secondary" onClick={() => { setSupplierModal({ open: false }); supplierReset(); }} type="button">إلغاء</Button>
-            <Button type="submit" loading={createSupplierMutation.isPending || updateSupplierMutation.isPending}>حفظ</Button>
-          </ModalFooter>
-        </form>
-      </Modal>
-    </AppLayout>
+function Factory() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/settings") });
+  const [d, setD] = useState<Settings | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (data) setD(data);
+  }, [data]);
+  if (!d) return <Skeleton h="h-60" />;
+  const save = async () => {
+    setError(null);
+    try {
+      await put("/settings", { factoryName: d.factoryName, factoryPhone: d.factoryPhone, partnerPercent: Number(d.partnerPercent) || 0 });
+      qc.invalidateQueries();
+      setMsg("انحفظ");
+      setTimeout(() => setMsg(null), 2000);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  return (
+    <div className="grid gap-4">
+      <label>
+        <span className="label">اسم المصنع (يطلع بالوصل)</span>
+        <input className="field" value={d.factoryName} onChange={(e) => setD({ ...d, factoryName: e.target.value })} />
+      </label>
+      <label>
+        <span className="label">رقم الهاتف (يطلع بالوصل)</span>
+        <input className="field" dir="ltr" inputMode="tel" value={d.factoryPhone} onChange={(e) => setD({ ...d, factoryPhone: e.target.value })} placeholder="07..." />
+      </label>
+      <label>
+        <span className="label">حصة الشريك من مبيعات الثلج (%)</span>
+        <input className="field" dir="ltr" inputMode="numeric" value={d.partnerPercent} onChange={(e) => setD({ ...d, partnerPercent: e.target.value.replace(/[^\d.]/g, "") })} />
+        <span className="text-sm text-muted">تظهر لك أنت فقط بصفحة الحساب. اكتب 0 إذا ماكو شريك.</span>
+      </label>
+      <ErrorLine msg={error} />
+      <button className="btn-sun" onClick={save}>{msg ?? "حفظ"}</button>
+    </div>
   );
 }

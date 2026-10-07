@@ -1,244 +1,213 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getReport } from "@/lib/api";
-import { formatCurrency, formatDate, expenseCategoryLabel, getTodayISOString, getStartOfWeek, getStartOfMonth } from "@/lib/utils";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
-import { Table } from "@/components/ui/Table";
-import { StatCard } from "@/components/ui/StatCard";
-import { SectionLoader } from "@/components/ui/Spinner";
-import { Printer, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
-import type { Transaction } from "@/lib/api";
+import { api, type Report } from "@/lib/api";
+import { EXPENSE, dayLabel, todayKey } from "@/lib/format";
+import { Shell } from "@/components/Shell";
+import { CountUp, Money, Num, PageTitle, Skeleton } from "@/components/ui";
 
-type Period = "daily" | "weekly" | "monthly";
+type Period = { id: string; label: string; from: string; to: string };
 
-const periodConfig = {
-  daily: { label: "يومي", startDate: getTodayISOString(), endDate: getTodayISOString() },
-  weekly: { label: "أسبوعي", startDate: getStartOfWeek(), endDate: getTodayISOString() },
-  monthly: { label: "شهري", startDate: getStartOfMonth(), endDate: getTodayISOString() },
-};
+function periods(): Period[] {
+  const t = todayKey();
+  const [y, m] = t.split("-").map(Number);
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const prevY = m === 1 ? y - 1 : y;
+  const prevM = m === 1 ? 12 : m - 1;
+  const lastOfPrev = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
+  return [
+    { id: "today", label: "اليوم", from: t, to: t },
+    { id: "yesterday", label: "أمس", from: todayKey(-1), to: todayKey(-1) },
+    { id: "week", label: "آخر 7 أيام", from: todayKey(-6), to: t },
+    { id: "month", label: "هذا الشهر", from: `${y}-${pad(m)}-01`, to: t },
+    { id: "prev", label: "الشهر الماضي", from: `${prevY}-${pad(prevM)}-01`, to: `${prevY}-${pad(prevM)}-${pad(lastOfPrev)}` },
+  ];
+}
 
 export default function ReportsPage() {
-  const [period, setPeriod] = useState<Period>("daily");
-  const [startDate, setStartDate] = useState(getTodayISOString());
-  const [endDate, setEndDate] = useState(getTodayISOString());
+  return (
+    <Shell roles={["OWNER", "SUPERVISOR"]}>
+      <Reports />
+    </Shell>
+  );
+}
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["report", period, startDate, endDate],
-    queryFn: () => getReport({ period, startDate, endDate }),
-  });
-
-  const handlePeriodChange = (p: Period) => {
-    setPeriod(p);
-    setStartDate(periodConfig[p].startDate);
-    setEndDate(periodConfig[p].endDate);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const txColumns = [
-    {
-      key: "date",
-      header: "التاريخ",
-      render: (row: Transaction) => formatDate(row.date),
-    },
-    {
-      key: "type",
-      header: "النوع",
-      render: (row: Transaction) => (
-        <span className="text-xs">
-          {row.type === "SNOW_SALE"
-            ? "❄️ مبيعات ثلج"
-            : row.type === "GOODS_SALE"
-            ? "📦 مبيعات بضاعة"
-            : row.type === "PURCHASE"
-            ? "🚛 مشتريات"
-            : "💸 مصاريف"}
-        </span>
-      ),
-    },
-    {
-      key: "description",
-      header: "الوصف",
-      render: (row: Transaction) => (
-        <span className="text-sm">{row.description}</span>
-      ),
-    },
-    {
-      key: "amount",
-      header: "المبلغ",
-      render: (row: Transaction) => (
-        <span
-          className={`font-bold ${
-            row.type === "EXPENSE" || row.type === "PURCHASE"
-              ? "text-[var(--error)]"
-              : "text-[var(--success)]"
-          }`}
-        >
-          {row.type === "EXPENSE" || row.type === "PURCHASE" ? "-" : "+"}
-          {formatCurrency(row.amount)}
-        </span>
-      ),
-    },
-  ];
+function Reports() {
+  const all = periods();
+  const [pid, setPid] = useState("month");
+  const p = all.find((x) => x.id === pid)!;
+  const { data: r } = useQuery({ queryKey: ["report", p.from, p.to], queryFn: () => api<Report>(`/reports?from=${p.from}&to=${p.to}`) });
 
   return (
-    <AppLayout>
-      <div className="no-print">
-        <PageHeader
-          title="التقارير"
-          subtitle="تقارير الإيرادات والمصاريف والأرباح"
-          actions={
-            <Button
-              variant="secondary"
-              icon={<Printer size={16} />}
-              onClick={handlePrint}
-            >
-              طباعة التقرير
-            </Button>
-          }
-        />
-
-        {/* Period Tabs */}
-        <div className="flex gap-2 mb-5 justify-end">
-          {(["daily", "weekly", "monthly"] as Period[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => handlePeriodChange(p)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                period === p
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)]"
-              }`}
-            >
-              {periodConfig[p].label}
-            </button>
-          ))}
-        </div>
-
-        {/* Date Range */}
-        <div className="flex gap-3 mb-6 justify-end items-end">
-          <Input
-            label="إلى"
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-40"
-          />
-          <Input
-            label="من"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-40"
-          />
-        </div>
+    <div>
+      <PageTitle title="الحساب" sub="الربح، المبيعات، والمصاريف" />
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+        {all.map((x) => (
+          <button key={x.id} className="chip shrink-0" aria-pressed={pid === x.id} onClick={() => setPid(x.id)}>
+            {x.label}
+          </button>
+        ))}
       </div>
 
-      {isLoading ? (
-        <SectionLoader />
-      ) : isError ? (
-        <div className="text-center py-12 text-[var(--error)]">
-          حدث خطأ في تحميل التقرير.
-        </div>
-      ) : data ? (
-        <div className="space-y-6">
-          {/* Print Header (hidden on screen) */}
-          <div className="print-only hidden text-center mb-6">
-            <h1 className="text-2xl font-bold">مصنع الثلج - تقرير {periodConfig[period].label}</h1>
-            <p className="text-sm mt-1">
-              من {formatDate(data.startDate)} إلى {formatDate(data.endDate)}
-            </p>
-            <hr className="my-3" />
-          </div>
+      {!r ? (
+        <div className="grid gap-4 lg:grid-cols-2"><Skeleton h="h-64" /><Skeleton h="h-64" /></div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+          <div className="grid gap-4">
+            <section className="panel trim-soft p-5">
+              <p className="label">الربح</p>
+              <CountUp v={r.profit} money className={`num big-money ${r.profit < 0 ? "text-debt" : "text-cash"}`} />
+              <dl className="mt-4 grid gap-1.5 text-lg">
+                <Row label="المبيعات" v={r.sales.total} />
+                <Row label="كلفة البضاعة المباعة" v={-r.goodsCost} hint="حسب معدل سعر الشراء" />
+                <Row label="المصاريف" v={-r.expenses.total} />
+                <div className="mt-1 border-t-2 border-teal pt-1.5">
+                  <Row label="الربح" v={r.profit} strong />
+                </div>
+              </dl>
+            </section>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="إجمالي الإيراد"
-              value={formatCurrency(data.totalRevenue)}
-              icon={<DollarSign size={22} />}
-              valueClassName="text-[var(--success)]"
-            />
-            <StatCard
-              label="إجمالي المصاريف"
-              value={formatCurrency(data.totalExpenses)}
-              icon={<TrendingDown size={22} />}
-              valueClassName="text-[var(--error)]"
-            />
-            <StatCard
-              label="صافي الربح"
-              value={formatCurrency(data.netProfit)}
-              icon={<TrendingUp size={22} />}
-              valueClassName={
-                data.netProfit >= 0
-                  ? "text-[var(--success)]"
-                  : "text-[var(--error)]"
-              }
-            />
-            <StatCard
-              label="حصة الشريك (50%)"
-              value={formatCurrency(data.cofounderShare)}
-            />
-          </div>
+            {r.partner && (
+              <section className="panel flex items-center justify-between gap-3 p-5">
+                <div>
+                  <p className="label">حصة الشريك من مبيعات الثلج</p>
+                  <p className="text-sm text-muted"><span dir="ltr">{r.partner.percent}%</span> من <Money v={r.sales.ice} /></p>
+                </div>
+                <Money v={r.partner.share} className="num text-3xl text-teal" />
+              </section>
+            )}
 
-          {/* Revenue Breakdown */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card title="تفصيل الإيرادات">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-[var(--border)]">
-                  <span className="font-bold text-[var(--success)]">{formatCurrency(data.snowRevenue)}</span>
-                  <span className="text-sm text-[var(--text-muted)]">إيرادات الثلج</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-[var(--border)]">
-                  <span className="font-bold text-[var(--success)]">{formatCurrency(data.goodsRevenue)}</span>
-                  <span className="text-sm text-[var(--text-muted)]">إيرادات البضاعة</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="font-bold text-xl text-[var(--text)]">{formatCurrency(data.totalRevenue)}</span>
-                  <span className="text-sm font-bold">الإجمالي</span>
-                </div>
+            <section className="panel p-5">
+              <h2 className="num mb-3 text-2xl text-teal">الفلوس</h2>
+              <dl className="grid gap-1.5 text-lg">
+                <Row label="انقبض وقت البيع" v={r.sales.paidNow} />
+                <Row label="انباع دين" v={r.sales.onCredit} tone="debt" />
+                <Row label="ديون قديمة استلمناها" v={r.collected} tone="cash" />
+                <Row label="مشتريات" v={r.purchases.total} hint={r.purchases.total > r.purchases.paid ? `دفعنا ${r.purchases.paid.toLocaleString("en-US")}` : undefined} />
+              </dl>
+            </section>
+
+            <section className="panel p-5">
+              <h2 className="num mb-3 text-2xl text-teal">الثلج</h2>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <Box label="انتاج" v={r.iceBlocks.produced} />
+                <Box label="بيع" v={r.iceBlocks.sold} />
+                <Box label="تالف" v={r.iceBlocks.wasted} tone="debt" />
               </div>
-            </Card>
-
-            <Card title="توزيع المصاريف">
-              <div className="space-y-2">
-                {data.expenseBreakdown?.length > 0 ? (
-                  data.expenseBreakdown.map((item, i) => (
-                    <div key={i} className="flex justify-between items-center py-1.5">
-                      <span className="font-semibold text-[var(--error)]">{formatCurrency(item.total)}</span>
-                      <span className="text-sm text-[var(--text-muted)]">
-                        {expenseCategoryLabel(item.category)}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-[var(--text-muted)] text-sm text-center py-4">
-                    لا توجد مصاريف في هذه الفترة
-                  </p>
-                )}
-              </div>
-            </Card>
+              <p className="mt-2 text-sm text-muted">بالقوالب. الثلج المجروش محسوب حسب كم قالب يستهلك.</p>
+            </section>
           </div>
 
-          {/* Transactions Table */}
-          <Card title="تفاصيل المعاملات" noPadding>
-            <Table
-              columns={txColumns}
-              data={data.transactions ?? []}
-              keyExtractor={(row) => row.id}
-              emptyMessage="لا توجد معاملات في هذه الفترة"
-            />
-          </Card>
+          <div className="grid gap-4">
+            {r.byDay.length > 1 && <DayBars days={r.byDay} />}
+
+            <section className="panel p-5">
+              <h2 className="num mb-2 text-2xl text-teal">شنو انباع</h2>
+              {r.byProduct.length === 0 ? (
+                <p className="text-muted">ماكو مبيعات بهذه الفترة</p>
+              ) : (
+                <table className="w-full">
+                  <tbody className="divide-y divide-line">
+                    {r.byProduct.map((p) => (
+                      <tr key={p.name}>
+                        <td className="py-2 font-semibold">{p.name}</td>
+                        <td className="py-2 text-center text-muted"><Num v={p.qty} /></td>
+                        <td className="py-2 text-left"><Money v={p.total} className="font-bold" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+
+            {r.expenses.byCategory.length > 0 && (
+              <section className="panel p-5">
+                <h2 className="num mb-2 text-2xl text-teal">المصاريف</h2>
+                <dl className="grid gap-1.5">
+                  {r.expenses.byCategory.map((c) => (
+                    <Row key={c.category} label={EXPENSE[c.category]} v={c.total} />
+                  ))}
+                </dl>
+              </section>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="panel p-5">
+                <h2 className="num mb-2 text-xl text-teal">البيع حسب العامل</h2>
+                {r.byWorker.map((w) => (
+                  <div key={w.name} className="flex justify-between py-1">
+                    <span className="font-semibold">{w.name} <span className="text-sm text-muted">(<span dir="ltr">{w.count}</span>)</span></span>
+                    <Money v={w.total} />
+                  </div>
+                ))}
+                {!r.byWorker.length && <p className="text-muted">—</p>}
+              </section>
+              <section className="panel p-5">
+                <h2 className="num mb-2 text-xl text-teal">أكثر الزبائن</h2>
+                {r.topCustomers.map((c) => (
+                  <div key={c.name} className="flex justify-between gap-2 py-1">
+                    <span className="truncate font-semibold">{c.name}</span>
+                    <Money v={c.total} />
+                  </div>
+                ))}
+                {!r.topCustomers.length && <p className="text-muted">—</p>}
+              </section>
+            </div>
+          </div>
         </div>
-      ) : null}
-    </AppLayout>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, v, hint, strong, tone }: { label: string; v: number; hint?: string; strong?: boolean; tone?: "debt" | "cash" }) {
+  const color = tone === "debt" ? "text-debt" : tone === "cash" ? "text-cash" : v < 0 ? "text-debt" : "text-ink";
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className={strong ? "font-bold text-teal" : "text-muted"}>
+        {label}
+        {hint && <span className="block text-xs">{hint}</span>}
+      </dt>
+      <dd className={`${color} ${strong ? "num text-2xl" : "font-bold"}`}>
+        {v < 0 && "−"}
+        <Money v={Math.abs(v)} />
+      </dd>
+    </div>
+  );
+}
+
+function Box({ label, v, tone }: { label: string; v: number; tone?: "debt" }) {
+  return (
+    <div className="rounded-btn bg-ground p-3">
+      <Num v={v} className={`num text-3xl ${tone === "debt" ? "text-debt" : "text-teal"}`} />
+      <p className="text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
+function DayBars({ days }: { days: Report["byDay"] }) {
+  const max = Math.max(1, ...days.map((d) => d.sales));
+  const shown = days.slice(-31);
+  return (
+    <section className="panel p-5">
+      <h2 className="num mb-1 text-2xl text-teal">المبيعات يوم بيوم</h2>
+      <p className="mb-3 text-sm text-muted">
+        <span className="ml-3 inline-block h-2.5 w-2.5 rounded-sm bg-teal" /> مبيعات
+        <span className="mx-3 inline-block h-2.5 w-2.5 rounded-sm bg-debt/70" /> مصاريف
+      </p>
+      <div className="flex h-40 items-end gap-[3px]" dir="ltr">
+        {shown.map((d, i) => (
+          <div key={d.day} className="group relative flex h-full flex-1 items-end gap-[1px]" title={`${dayLabel(d.day)}: ${d.sales.toLocaleString("en-US")}`}>
+            <div className="grow w-full rounded-t-sm bg-teal" style={{ height: `${(d.sales / max) * 100}%`, animationDelay: `${i * 15}ms` }} />
+            {d.expenses > 0 && <div className="grow absolute bottom-0 left-1/4 w-1/2 rounded-t-sm bg-debt/70" style={{ height: `${Math.min(100, (d.expenses / max) * 100)}%` }} />}
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between text-xs text-muted" dir="ltr">
+        <span>{shown[0].day.slice(5).split("-").reverse().join("/")}</span>
+        <span>{shown[shown.length - 1].day.slice(5).split("-").reverse().join("/")}</span>
+      </div>
+    </section>
   );
 }

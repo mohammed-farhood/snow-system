@@ -1,201 +1,198 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg: oklch(0.12 0.02 260);
-  --surface: oklch(0.16 0.02 260);
-  --surface-2: oklch(0.19 0.02 260);
-  --border: oklch(0.24 0.02 260);
-  --accent: oklch(0.60 0.20 215);
-  --accent-hover: oklch(0.65 0.22 215);
-  --accent-muted: oklch(0.60 0.20 215 / 0.15);
-  --text: oklch(0.95 0.01 260);
-  --text-muted: oklch(0.60 0.02 260);
-  --success: oklch(0.65 0.18 145);
-  --warning: oklch(0.75 0.18 65);
-  --error: oklch(0.60 0.22 25);
-  --radius: 0.5rem;
+  --teal: #0f4c4a;
+  --teal-2: #17625f;
+  --sun: #ffc530;
+  --sun-deep: #e8a800;
+  --ground: #eef3f2;
+  --paper: #ffffff;
+  --ink: #161616;
+  --muted: #5b6b69;
+  --line: #d3dddb;
+  --debt: #c2412d;
+  --cash: #1d7a4a;
+  color-scheme: light;
 }
 
-@layer base {
-  html {
-    direction: rtl;
-    font-family: 'Cairo', sans-serif;
-  }
-
-  body {
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: 'Cairo', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Cairo', sans-serif;
-    font-weight: 700;
-  }
-
-  input, select, textarea, button {
-    font-family: 'Cairo', sans-serif;
-  }
+html {
+  -webkit-tap-highlight-color: transparent;
 }
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
-
-::-webkit-scrollbar-track {
-  background: var(--bg);
+/* Grid children may shrink below their content, so truncated rows never push the page sideways. */
+.grid > * {
+  min-width: 0;
 }
-
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+input,
+button,
+select,
+textarea {
+  font: inherit;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
 }
-
-/* Focus styles */
-*:focus-visible {
-  outline: 2px solid var(--accent);
+:focus-visible {
+  outline: 3px solid var(--sun-deep);
   outline-offset: 2px;
 }
 
-/* Selection */
-::selection {
-  background-color: var(--accent-muted);
-  color: var(--text);
+@layer components {
+  .panel {
+    @apply rounded-panel border-2 bg-paper;
+    border-color: color-mix(in srgb, var(--teal) 14%, white);
+  }
+  .num {
+    font-family: var(--font-display), var(--font-body), sans-serif;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+  }
+  /* Headline amounts: as big as the phone allows, never wider than it. */
+  .big-money {
+    font-size: clamp(2rem, 10.5vw, 3rem);
+  }
+  .label {
+    @apply text-sm font-semibold text-muted;
+  }
+  .field {
+    @apply w-full rounded-btn border-2 border-line bg-paper px-4 py-3 text-lg text-ink outline-none transition-colors;
+  }
+  .field:focus {
+    border-color: var(--teal);
+  }
+  .btn {
+    @apply inline-flex min-h-[56px] select-none items-center justify-center gap-2 rounded-btn px-5 text-lg font-bold transition-transform active:scale-[0.97] disabled:opacity-50;
+  }
+  .btn-sun {
+    @apply btn bg-sun text-teal;
+    box-shadow: inset 0 -4px 0 var(--sun-deep);
+  }
+  .btn-teal {
+    @apply btn bg-teal text-white;
+    box-shadow: inset 0 -4px 0 #0a3836;
+  }
+  .btn-ghost {
+    @apply btn border-2 border-line bg-paper text-teal;
+  }
+  .chip {
+    @apply inline-flex min-h-[44px] items-center gap-1 rounded-full border-2 border-line bg-paper px-4 text-base font-semibold text-teal transition-colors;
+  }
+  .chip[aria-pressed="true"] {
+    @apply border-teal bg-teal text-white;
+  }
 }
 
-/* Utility classes */
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Painted truck trim: the one decorative pattern. Used on the header band and the sell panel only. */
+.trim {
+  background: repeating-linear-gradient(-45deg, var(--sun) 0 10px, var(--teal) 10px 20px, var(--sun) 20px 30px, var(--debt) 30px 34px);
+}
+.trim-soft {
+  background-image: repeating-linear-gradient(-45deg, rgba(15, 76, 74, 0.1) 0 12px, transparent 12px 24px);
+}
 
-  .bg-surface {
-    background-color: var(--surface);
+/* Motion */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
-
-  .bg-surface-2 {
-    background-color: var(--surface-2);
+}
+.enter {
+  animation: enter 180ms ease-out both;
+}
+@keyframes bump {
+  40% {
+    transform: scale(1.18);
   }
-
-  .border-default {
-    border-color: var(--border);
+}
+.bump {
+  animation: bump 220ms ease-out;
+}
+@keyframes sheet {
+  from {
+    transform: translateY(100%);
   }
-
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+}
+.sheet {
+  animation: sheet 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
   }
+}
+.fade {
+  animation: fade 200ms ease-out both;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: draw 420ms 120ms ease-out forwards;
+}
+@keyframes ring {
+  from {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.ring {
+  animation: ring 700ms ease-out both;
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+.shake {
+  animation: shake 300ms ease-in-out;
+}
+@keyframes grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+.grow {
+  transform-origin: bottom;
+  animation: grow 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
 
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
   }
 }
 
-/* Print Styles */
 @media print {
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
   body {
-    background: white !important;
-    color: black !important;
-    direction: rtl;
+    background: white;
   }
-
-  .no-print {
-    display: none !important;
-  }
-
-  .print-only {
-    display: block !important;
-  }
-
-  .receipt-print {
-    background: white !important;
-    color: black !important;
-    padding: 20px;
-    font-family: 'Cairo', sans-serif;
-  }
-
-  .receipt-print * {
-    color: black !important;
-    border-color: #333 !important;
-    background: white !important;
-  }
-
-  @page {
-    margin: 1cm;
-    size: A5;
-  }
-}
-
-/* Sidebar & layout transitions */
-.sidebar-transition {
-  transition: transform 0.3s ease, width 0.3s ease;
-}
-
-/* Loading skeleton animation */
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-
-.skeleton {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-  background: var(--surface-2);
-  border-radius: var(--radius);
-}
-
-/* Chart tooltip custom styling */
-.recharts-tooltip-wrapper {
-  direction: rtl;
-}
-
-/* Input RTL fix */
-input[type="number"] {
-  direction: ltr;
-  text-align: right;
-}
-
-/* Table row hover */
-.table-row-hover:hover {
-  background-color: var(--surface-2);
-  transition: background-color 0.15s ease;
-}
-
-/* Gradient backgrounds */
-.gradient-accent {
-  background: linear-gradient(135deg, var(--accent), oklch(0.50 0.22 230));
-}
-
-.gradient-bg {
-  background: linear-gradient(180deg, var(--bg) 0%, oklch(0.10 0.02 260) 100%);
-}
-
-/* Card hover effect */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }

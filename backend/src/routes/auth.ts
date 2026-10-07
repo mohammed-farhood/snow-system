@@ -30,7 +30,7 @@ router.get(
 
 router.post(
   "/login",
-  validate(z.object({ userId: z.number().int(), pin: z.string().regex(/^\d{4,6}$/) })),
+  validate(z.object({ userId: z.number().int(), pin: z.string().regex(/^\d{4}$/) })),
   h(async (req) => {
     const { userId, pin } = req.body as { userId: number; pin: string };
     const user = await prisma.user.findUnique({ where: { id: userId } });

@@ -57,7 +57,7 @@ async function demo(ownerId: number) {
   ];
   const goods = [];
   for (const [i, g] of goodsData.entries()) {
-    goods.push({ ...(await prisma.product.create({ data: { name: g.name, unit: g.unit, price: g.price, sortOrder: i } })), cost: g.cost });
+    goods.push({ ...(await prisma.product.create({ data: { name: g.name, unit: g.unit, price: g.price, sortOrder: i, openingStock: i === 3 ? 45 : 80 }})), cost: g.cost });
   }
   const ice = await prisma.product.findMany({ where: { kind: "ICE" }, orderBy: { sortOrder: "asc" } });
 
@@ -79,7 +79,7 @@ async function demo(ownerId: number) {
 
     await prisma.production.create({ data: { date: at(6), blocks: rand(130, 190), wasted: rand(0, 8), createdById: pick(staff) } });
 
-    if (d % 6 === 0) {
+    if (d % 6 === 3) {
       await prisma.purchase.create({
         data: {
           date: at(8),

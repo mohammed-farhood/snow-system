@@ -66,7 +66,7 @@ router.get(
   )
 );
 
-const pin = z.string().regex(/^\d{4,6}$/, "الرمز من 4 إلى 6 أرقام");
+const pin = z.string().regex(/^\d{4}$/, "الرمز 4 أرقام");
 
 router.post(
   "/users",

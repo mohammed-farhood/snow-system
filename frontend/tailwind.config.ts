@@ -1,55 +1,26 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
-  darkMode: "class",
+  content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      fontFamily: {
-        cairo: ["Cairo", "sans-serif"],
-        sans: ["Cairo", "sans-serif"],
-      },
+      // Hex (not CSS vars) so opacity modifiers like bg-teal/10 work. Keep in sync with globals.css.
       colors: {
-        bg: "var(--bg)",
-        surface: "var(--surface)",
-        "surface-2": "var(--surface-2)",
-        border: "var(--border)",
-        accent: "var(--accent)",
-        "accent-hover": "var(--accent-hover)",
-        "accent-muted": "var(--accent-muted)",
-        text: "var(--text)",
-        "text-muted": "var(--text-muted)",
-        success: "var(--success)",
-        warning: "var(--warning)",
-        error: "var(--error)",
+        teal: { DEFAULT: "#0F4C4A", 2: "#17625F" },
+        sun: { DEFAULT: "#FFC530", deep: "#E8A800" },
+        ground: "#EEF3F2",
+        paper: "#FFFFFF",
+        ink: "#161616",
+        muted: "#5B6B69",
+        line: "#D3DDDB",
+        debt: "#C2412D",
+        cash: "#1D7A4A",
       },
-      borderRadius: {
-        DEFAULT: "var(--radius)",
+      fontFamily: {
+        sans: ["var(--font-body)", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-body)", "sans-serif"],
       },
-      spacing: {
-        "18": "4.5rem",
-        "88": "22rem",
-        "sidebar": "16rem",
-      },
-      animation: {
-        "spin-slow": "spin 2s linear infinite",
-        "fade-in": "fadeIn 0.2s ease-in-out",
-        "slide-in": "slideIn 0.2s ease-out",
-      },
-      keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        slideIn: {
-          "0%": { transform: "translateY(-8px)", opacity: "0" },
-          "100%": { transform: "translateY(0)", opacity: "1" },
-        },
-      },
+      borderRadius: { panel: "14px", btn: "18px" },
     },
   },
   plugins: [],

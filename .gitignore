@@ -15,3 +15,4 @@ backend/data/
 
 # graphify knowledge graph — regenerated locally by git hook
 /graphify-out/
+*.tsbuildinfo

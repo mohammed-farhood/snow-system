@@ -33,7 +33,7 @@ enum ExpenseCategory {
 model User {
   id        Int      @id @default(autoincrement())
   name      String
-  pin       String // bcrypt hash of a 4–6 digit PIN
+  pin       String // bcrypt hash of a 4-digit PIN
   role      Role     @default(WORKER)
   isActive  Boolean  @default(true)
   failedPin Int      @default(0)
